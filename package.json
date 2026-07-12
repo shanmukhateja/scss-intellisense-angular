@@ -1,8 +1,8 @@
 {
 	"name": "vscode-scss",
 	"type": "module",
-	"displayName": "SCSS IntelliSense",
-	"description": "Advanced autocompletion and refactoring support for SCSS",
+	"displayName": "SCSS IntelliSense for Angular",
+	"description": "Advanced autocompletion, hover, and go-to-definition for SCSS in Angular projects",
 	"version": "0.10.0",
 	"preview": true,
 	"publisher": "mrmlnc",
@@ -18,6 +18,7 @@
 	},
 	"keywords": [
 		"scss",
+		"angular",
 		"autocompletion",
 		"intellisense",
 		"refactor"
@@ -26,8 +27,7 @@
 		"Programming Languages"
 	],
 	"activationEvents": [
-		"onLanguage:scss",
-		"onLanguage:vue"
+		"onLanguage:scss"
 	],
 	"main": "./out/client.js",
 	"contributes": {
@@ -53,15 +53,7 @@
 				"scss.scanImportedFiles": {
 					"type": "boolean",
 					"default": true,
-					"description": "Allows scan imported files."
-				},
-				"scss.implicitlyLabel": {
-					"type": [
-						"string",
-						"null"
-					],
-					"default": "(implicitly)",
-					"description": "The text of a label that the file imported implicitly. If `null` then label not displayed."
+					"description": "Eagerly follow @import/@use/@forward edges during the initial workspace scan, to warm the cache with files the scss glob might have missed. Does not control which symbols are suggested for a given file — that's decided by its own @use/@import chain plus scss.customProperties.scope for CSS custom properties."
 				},
 				"scss.showErrors": {
 					"type": "boolean",
@@ -92,6 +84,23 @@
 					"type": "number",
 					"description": "The port that SCSS IntelliSense server listens to. Can be used for attaching to the server Node process for debugging / profiling.",
 					"default": -1
+				},
+				"scss.angular.includePaths": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"default": [],
+					"description": "Extra directories (workspace-relative or absolute) to search for bare-specifier @use/@import/@forward targets, in addition to angular.json's own stylePreprocessorOptions.includePaths. Entries resolving outside the current workspace folder are ignored."
+				},
+				"scss.customProperties.scope": {
+					"type": "string",
+					"enum": [
+						"workspace",
+						"root-selectors"
+					],
+					"default": "workspace",
+					"description": "Controls which CSS custom properties (--x) are suggested/resolved across files. \"workspace\": any --x declared anywhere is available everywhere (matches real CSS cascade behavior). \"root-selectors\": only --x declared inside a :root/html/body selector counts as global."
 				}
 			}
 		}

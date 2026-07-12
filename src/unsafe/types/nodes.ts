@@ -111,6 +111,7 @@ export interface INode {
 	getText(): string;
 	getParameters(): INode;
 	getIdentifier(): INode;
+	getProperty(): INode;
 
 	getParent(): INode;
 	getChildren(): INode[];

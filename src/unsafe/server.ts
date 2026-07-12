@@ -1,5 +1,7 @@
 'use strict';
 
+import * as path from 'path';
+
 import {
 	createConnection,
 	Connection,
@@ -11,11 +13,14 @@ import {
 	TextDocumentSyncKind
 } from 'vscode-languageserver/node';
 import { TextDocument } from 'vscode-languageserver-textdocument';
+import { URI } from 'vscode-uri';
 
 import type { ISettings } from './types/settings.js';
 
 import ScannerService from './services/scanner.js';
 import StorageService from './services/storage.js';
+import ImportGraphService from './services/importGraph.js';
+import AngularWorkspaceService from './services/angularWorkspace.js';
 
 import { doCompletion } from './providers/completion.js';
 import { doHover } from './providers/hover.js';
@@ -23,8 +28,6 @@ import { doSignatureHelp } from './providers/signatureHelp.js';
 import { goDefinition } from './providers/goDefinition.js';
 import { searchWorkspaceSymbol } from './providers/workspaceSymbol.js';
 import { findFiles } from './utils/fs.js';
-import { getSCSSRegionsDocument } from './utils/vue.js';
-import { URI } from 'vscode-uri';
 
 interface InitializationOption {
 	workspace: string;
@@ -35,6 +38,9 @@ let workspaceRoot: string;
 let settings: ISettings;
 let storageService: StorageService;
 let scannerService: ScannerService;
+let angularWorkspaceService: AngularWorkspaceService;
+let importGraphService: ImportGraphService;
+let lastAngularJsonFound: boolean | undefined;
 
 // Create a connection for the server
 const connection: Connection = createConnection(new IPCMessageReader(process), new IPCMessageWriter(process));
@@ -50,6 +56,26 @@ const documents = new TextDocuments(TextDocument);
 // _for open, change and close text document events
 documents.listen(connection);
 
+/**
+ * Warns once per server session if `angular.json` isn't found (rather than
+ * failing silently), and again only if the found/not-found state actually
+ * flips (e.g. `angular.json` is added after the workspace was already open).
+ */
+function notifyAngularJsonStatus(): void {
+	const found = angularWorkspaceService.wasFound();
+	if (found === lastAngularJsonFound) {
+		return;
+	}
+
+	lastAngularJsonFound = found;
+
+	if (!found) {
+		connection.window.showWarningMessage(
+			'angular.json not found in workspace root — Angular-specific includePaths resolution will be unavailable.'
+		);
+	}
+}
+
 // After the server has started the client sends an initilize request. The server receives
 // _in the passed params the rootPath of the workspace plus the client capabilites
 connection.onInitialize(
@@ -61,6 +87,12 @@ connection.onInitialize(
 
 		storageService = new StorageService();
 		scannerService = new ScannerService(storageService, settings);
+
+		angularWorkspaceService = new AngularWorkspaceService(workspaceRoot, settings);
+		await angularWorkspaceService.load();
+		notifyAngularJsonStatus();
+
+		importGraphService = new ImportGraphService(storageService, angularWorkspaceService);
 
 		const files = await findFiles('**/*.scss', {
 			cwd: workspaceRoot,
@@ -95,10 +127,28 @@ connection.onDidChangeConfiguration(params => {
 	settings = params.settings.scss;
 });
 
-connection.onDidChangeWatchedFiles(event => {
-	const files = event.changes.map((file) => URI.parse(file.uri).fsPath);
+connection.onDidChangeWatchedFiles(async event => {
+	const scssFiles: string[] = [];
+	let angularJsonChanged = false;
 
-	return scannerService.scan(files);
+	for (const change of event.changes) {
+		const fsPath = URI.parse(change.uri).fsPath;
+
+		if (path.basename(fsPath) === 'angular.json') {
+			angularJsonChanged = true;
+		} else {
+			scssFiles.push(fsPath);
+		}
+	}
+
+	if (angularJsonChanged) {
+		await angularWorkspaceService.reload();
+		notifyAngularJsonStatus();
+	}
+
+	if (scssFiles.length > 0) {
+		await scannerService.scan(scssFiles);
+	}
 });
 
 connection.onCompletion(textDocumentPosition => {
@@ -107,14 +157,9 @@ connection.onCompletion(textDocumentPosition => {
 		return;
 	}
 
-	const { document, offset } = getSCSSRegionsDocument(
-		uri,
-		textDocumentPosition.position
-	);
-	if (!document) {
-		return null;
-	}
-	return doCompletion(document, offset, settings, storageService);
+	const offset = uri.offsetAt(textDocumentPosition.position);
+
+	return doCompletion(uri, offset, settings, storageService, importGraphService);
 });
 
 connection.onHover(textDocumentPosition => {
@@ -123,14 +168,9 @@ connection.onHover(textDocumentPosition => {
 		return;
 	}
 
-	const { document, offset } = getSCSSRegionsDocument(
-		uri,
-		textDocumentPosition.position
-	);
-	if (!document) {
-		return null;
-	}
-	return doHover(document, offset, storageService);
+	const offset = uri.offsetAt(textDocumentPosition.position);
+
+	return doHover(uri, offset, storageService, importGraphService, settings);
 });
 
 connection.onSignatureHelp(textDocumentPosition => {
@@ -139,14 +179,9 @@ connection.onSignatureHelp(textDocumentPosition => {
 		return;
 	}
 
-	const { document, offset } = getSCSSRegionsDocument(
-		uri,
-		textDocumentPosition.position
-	);
-	if (!document) {
-		return null;
-	}
-	return doSignatureHelp(document, offset, storageService);
+	const offset = uri.offsetAt(textDocumentPosition.position);
+
+	return doSignatureHelp(uri, offset, storageService, importGraphService);
 });
 
 connection.onDefinition(textDocumentPosition => {
@@ -155,14 +190,9 @@ connection.onDefinition(textDocumentPosition => {
 		return;
 	}
 
-	const { document, offset } = getSCSSRegionsDocument(
-		uri,
-		textDocumentPosition.position
-	);
-	if (!document) {
-		return null;
-	}
-	return goDefinition(document, offset, storageService);
+	const offset = uri.offsetAt(textDocumentPosition.position);
+
+	return goDefinition(uri, offset, storageService, importGraphService, settings);
 });
 
 connection.onWorkspaceSymbol(workspaceSymbolParams => {

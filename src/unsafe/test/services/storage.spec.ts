@@ -12,7 +12,10 @@ describe('Services → Storage', () => {
 				functions: [],
 				imports: [],
 				mixins: [],
-				variables: []
+				variables: [],
+				uses: [],
+				forwards: [],
+				customProperties: []
 			});
 
 			const actual = service.get('key');
@@ -29,7 +32,10 @@ describe('Services → Storage', () => {
 				functions: [],
 				imports: [],
 				mixins: [],
-				variables: []
+				variables: [],
+				uses: [],
+				forwards: [],
+				customProperties: []
 			});
 
 			service.delete('key');
@@ -48,7 +54,10 @@ describe('Services → Storage', () => {
 				functions: [],
 				imports: [],
 				mixins: [],
-				variables: []
+				variables: [],
+				uses: [],
+				forwards: [],
+				customProperties: []
 			});
 
 			const actual = service.keys();
@@ -65,7 +74,10 @@ describe('Services → Storage', () => {
 				functions: [],
 				imports: [],
 				mixins: [],
-				variables: []
+				variables: [],
+				uses: [],
+				forwards: [],
+				customProperties: []
 			};
 
 			service.set('key', symbols);
@@ -84,7 +96,10 @@ describe('Services → Storage', () => {
 				functions: [],
 				imports: [],
 				mixins: [],
-				variables: []
+				variables: [],
+				uses: [],
+				forwards: [],
+				customProperties: []
 			};
 
 			service.set('key', symbols);

@@ -1,8 +1,20 @@
 'use strict';
 
 import fs from 'fs';
+import * as path from 'path';
 
 import fg from 'fast-glob';
+
+/**
+ * True if `candidate` is `root` itself, or a path underneath it. Used to make
+ * sure user-configured include paths can't be used to read files from
+ * arbitrary filesystem locations outside the opened workspace.
+ */
+export function isPathWithinRoot(root: string, candidate: string): boolean {
+	const relative = path.relative(root, candidate);
+
+	return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+}
 
 export function findFiles(pattern: string, options: fg.Options): Promise<string[]> {
 	return fg(pattern, {

@@ -10,6 +10,8 @@ import type { IDocument, IDocumentSymbols, IVariable, IImport } from '../types/s
 import { getNodeAtOffset, getParentNodeByType } from '../utils/ast.js';
 import { buildDocumentContext } from '../utils/document.js';
 import { getLanguageService } from '../language-service.js';
+import { collectUseForwardNodes } from '../utils/scssModules.js';
+import { collectCustomProperties } from '../utils/customProperties.js';
 
 const reDynamicPath = /[#{}\*]/;
 
@@ -37,12 +39,17 @@ export async function parseDocument(document: TextDocument, offset: number | nul
 async function findDocumentSymbols(document: TextDocument, ast: INode): Promise<IDocumentSymbols> {
 	const symbols = ls.findDocumentSymbols(document, ast);
 	const links = await findDocumentLinks(document, ast);
+	const { uses, forwards } = collectUseForwardNodes(document, ast, links);
+	const customProperties = collectCustomProperties(document, ast);
 
 	const result: IDocumentSymbols = {
 		functions: [],
 		imports: convertLinksToImports(links),
 		mixins: [],
-		variables: []
+		variables: [],
+		uses,
+		forwards,
+		customProperties
 	};
 
 	for (const symbol of symbols) {

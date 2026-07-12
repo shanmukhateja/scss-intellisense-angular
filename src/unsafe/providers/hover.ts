@@ -7,19 +7,20 @@ import { URI } from 'vscode-uri';
 import { NodeType } from '../types/nodes.js';
 import type { IDocumentSymbols, IVariable, IMixin, IFunction, ISymbols } from '../types/symbols.js';
 import type StorageService from '../services/storage.js';
+import type ImportGraphService from '../services/importGraph.js';
+import type { ISettings } from '../types/settings.js';
 
 import { parseDocument } from '../services/parser.js';
-import { getSymbolsCollection } from '../utils/symbols.js';
 import { getDocumentPath } from '../utils/document.js';
 import { getLimitedString } from '../utils/string.js';
+import { detectModuleAccess, resolveNamespacedSymbol } from '../utils/scssModules.js';
+import { detectCustomPropertyAccess, getCustomPropertyCandidates, resolveCustomProperty } from '../utils/customProperties.js';
 
-type Identifier = { type: keyof ISymbols; name: string };
+type BareIdentifier = { type: keyof ISymbols; name: string };
 
-function formatVariableMarkupContent(symbol: IVariable, fsPath: string, suffix: string): MarkupContent {
+function formatVariableMarkupContent(symbol: IVariable, fsPath: string): MarkupContent {
 	const value = getLimitedString(symbol.value || '');
-	if (fsPath !== 'current') {
-		suffix = `\n@import "${fsPath}"` + suffix;
-	}
+	const suffix = fsPath !== 'current' ? `\n@import "${fsPath}"` : '';
 
 	return {
 		kind: MarkupKind.Markdown,
@@ -31,82 +32,84 @@ function formatVariableMarkupContent(symbol: IVariable, fsPath: string, suffix: 
 	};
 }
 
-function formatMixinMarkupContent(symbol: IMixin, fsPath: string, suffix: string): MarkupContent {
+function formatMixinMarkupContent(symbol: IMixin, fsPath: string): MarkupContent {
 	const args = symbol.parameters.map(item => `${item.name}: ${item.value}`).join(', ');
-
-	if (fsPath !== 'current') {
-		suffix = `\n@import "${fsPath}"` + suffix;
-	}
+	const suffix = fsPath !== 'current' ? `\n@import "${fsPath}"` : '';
 
 	return {
 		kind: MarkupKind.Markdown,
 		value: [
 			'```scss',
-			`@mixin ${symbol.name}(${args}) {\u2026}${suffix}`,
-			'```'
-		].join('\n')
-	}
-}
-
-function formatFunctionMarkupContent(symbol: IFunction, fsPath: string, suffix: string): MarkupContent {
-	const args = symbol.parameters.map(item => `${item.name}: ${item.value}`).join(', ');
-
-	if (fsPath !== 'current') {
-		suffix = `\n@import "${fsPath}"` + suffix;
-	}
-
-	return {
-		kind: MarkupKind.Markdown,
-		value: [
-			'```scss',
-			`@function ${symbol.name}(${args}) {\u2026}${suffix}`,
+			`@mixin ${symbol.name}(${args}) {…}${suffix}`,
 			'```'
 		].join('\n')
 	};
 }
 
-interface ISymbol {
+function formatFunctionMarkupContent(symbol: IFunction, fsPath: string): MarkupContent {
+	const args = symbol.parameters.map(item => `${item.name}: ${item.value}`).join(', ');
+	const suffix = fsPath !== 'current' ? `\n@import "${fsPath}"` : '';
+
+	return {
+		kind: MarkupKind.Markdown,
+		value: [
+			'```scss',
+			`@function ${symbol.name}(${args}) {…}${suffix}`,
+			'```'
+		].join('\n')
+	};
+}
+
+function formatCustomPropertyMarkupContent(name: string, value: string | null, fsPath: string): MarkupContent {
+	const suffix = fsPath !== 'current' ? `\n@import "${fsPath}"` : '';
+
+	return {
+		kind: MarkupKind.Markdown,
+		value: [
+			'```scss',
+			`${name}: ${getLimitedString(value || '')};${suffix}`,
+			'```'
+		].join('\n')
+	};
+}
+
+interface IBareSymbol {
 	document?: string;
 	path: string;
-	info: any;
+	info: IVariable | IMixin | IFunction;
 }
 
 /**
- * Returns the Symbol, if it present in the documents.
+ * Returns the first bare-name match across `symbolList` — a scoped list
+ * (the entry document's own `getReachableDocuments()` result), not the whole
+ * workspace, so "first match" is now a meaningful, mostly-unambiguous choice
+ * rather than an arbitrary one.
  */
-function getSymbol(symbolList: IDocumentSymbols[], identifier: Identifier, currentPath: string): ISymbol | null {
-	for (let i = 0; i < symbolList.length; i++) {
+function getBareSymbol(symbolList: IDocumentSymbols[], identifier: BareIdentifier, currentPath: string): IBareSymbol | null {
+	for (const symbols of symbolList) {
 		if (identifier.type === 'imports') {
 			continue;
 		}
 
-		const symbols = symbolList[i];
-
-		if (symbols === undefined) {
-			continue;
-		}
-
 		const symbolsByType = symbols[identifier.type];
-
 		const fsPath = getDocumentPath(currentPath, symbols.filepath || symbols.document);
 
-		for (let j = 0; j < symbolsByType.length; j++) {
-			const symbol = symbolsByType[j];
-
-			if (symbol && symbol.name === identifier.name) {
-				return {
-					document: symbols.document,
-					path: fsPath,
-					info: symbol
-				};
-			}
+		const match = symbolsByType.find(item => item && item.name === identifier.name);
+		if (match !== undefined) {
+			return { document: symbols.document, path: fsPath, info: match };
 		}
 	}
 
 	return null;
 }
 
-export async function doHover(document: TextDocument, offset: number, storage: StorageService): Promise<Hover | null> {
+export async function doHover(
+	document: TextDocument,
+	offset: number,
+	storage: StorageService,
+	importGraph: ImportGraphService,
+	settings: ISettings
+): Promise<Hover | null> {
 	const documentPath = URI.parse(document.uri).fsPath;
 
 	const resource = await parseDocument(document, offset);
@@ -115,7 +118,45 @@ export async function doHover(document: TextDocument, offset: number, storage: S
 		return null;
 	}
 
-	let identifier: Identifier | null = null;
+	storage.set(document.uri, resource.symbols);
+
+	// Namespaced access (`ns.$x`, `ns.fn()`, `@include ns.mixin()`).
+	const moduleAccess = detectModuleAccess(hoverNode);
+	if (moduleAccess !== null) {
+		const resolved = resolveNamespacedSymbol(importGraph, documentPath, moduleAccess.namespace, moduleAccess.memberName, moduleAccess.memberType);
+		if (resolved === null) {
+			return null;
+		}
+
+		const fsPath = getDocumentPath(documentPath, resolved.documentPath);
+		let contents: MarkupContent;
+		if (moduleAccess.memberType === 'variables') {
+			contents = formatVariableMarkupContent(resolved.symbol as IVariable, fsPath);
+		} else if (moduleAccess.memberType === 'mixins') {
+			contents = formatMixinMarkupContent(resolved.symbol as IMixin, fsPath);
+		} else {
+			contents = formatFunctionMarkupContent(resolved.symbol as IFunction, fsPath);
+		}
+
+		return { contents };
+	}
+
+	// CSS custom property (`var(--x)`).
+	const customPropertyName = detectCustomPropertyAccess(hoverNode);
+	if (customPropertyName !== null) {
+		const candidates = getCustomPropertyCandidates(storage, settings);
+		const match = resolveCustomProperty(candidates, customPropertyName);
+		if (match === undefined) {
+			return null;
+		}
+
+		const fsPath = getDocumentPath(documentPath, match.fsPath);
+
+		return { contents: formatCustomPropertyMarkupContent(match.property.name, match.property.value, fsPath) };
+	}
+
+	// Bare-name access ($x, mixin-name(...), function-name(...)).
+	let identifier: BareIdentifier | null = null;
 	if (hoverNode.type === NodeType.VariableName) {
 		const parent = hoverNode.getParent();
 
@@ -159,27 +200,17 @@ export async function doHover(document: TextDocument, offset: number, storage: S
 		return null;
 	}
 
-	storage.set(document.uri, resource.symbols);
+	const symbolsList = importGraph.getReachableDocuments(documentPath);
+	const symbol = getBareSymbol(symbolsList, identifier, documentPath);
 
-	const symbolsList = getSymbolsCollection(storage);
-	const documentImports = resource.symbols.imports.map(x => x.filepath);
-	const symbol = getSymbol(symbolsList, identifier, documentPath);
-
-	// Content for Hover popup
 	let contents: MarkupContent | undefined;
 	if (symbol && symbol.document !== undefined) {
-		// Add 'implicitly' suffix if the file imported implicitly
-		let contentSuffix = '';
-		if (symbol.path !== 'current' && symbol.document && documentImports.indexOf(symbol.document) === -1) {
-			contentSuffix = ' (implicitly)';
-		}
-
 		if (identifier.type === 'variables') {
-			contents = formatVariableMarkupContent(symbol.info, symbol.path, contentSuffix);
+			contents = formatVariableMarkupContent(symbol.info as IVariable, symbol.path);
 		} else if (identifier.type === 'mixins') {
-			contents = formatMixinMarkupContent(symbol.info, symbol.path, contentSuffix);
+			contents = formatMixinMarkupContent(symbol.info as IMixin, symbol.path);
 		} else if (identifier.type === 'functions') {
-			contents = formatFunctionMarkupContent(symbol.info, symbol.path, contentSuffix);
+			contents = formatFunctionMarkupContent(symbol.info as IFunction, symbol.path);
 		}
 	}
 

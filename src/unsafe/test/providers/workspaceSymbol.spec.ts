@@ -19,7 +19,10 @@ storage.set('one.scss', {
 	functions: [
 		{ name: 'make', parameters: [], offset: 0, position: { line: 1, character: 1 } }
 	],
-	imports: []
+	imports: [],
+	uses: [],
+	forwards: [],
+	customProperties: []
 });
 
 describe('Providers/WorkspaceSymbol', () => {

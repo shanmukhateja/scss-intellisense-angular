@@ -45,6 +45,18 @@ export default class ScannerService {
 
 				iterator.add(symbol.filepath);
 			}
+
+			for (const use of symbols.uses) {
+				if (use.resolvedPath !== undefined) {
+					iterator.add(use.resolvedPath);
+				}
+			}
+
+			for (const forward of symbols.forwards) {
+				if (forward.resolvedPath !== undefined) {
+					iterator.add(forward.resolvedPath);
+				}
+			}
 		}
 	}
 

@@ -3,14 +3,16 @@
 import { SignatureHelp, SignatureInformation } from 'vscode-languageserver';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import { tokenizer } from 'scss-symbols-parser';
+import { URI } from 'vscode-uri';
 
 import type { IVariable } from '../types/symbols.js';
 import type StorageService from '../services/storage.js';
+import type ImportGraphService from '../services/importGraph.js';
 
 import { parseDocument } from '../services/parser.js';
-import { getSymbolsCollection } from '../utils/symbols.js';
 import { getTextBeforePosition } from '../utils/string.js';
 import { hasInFacts } from '../utils/facts.js';
+import { resolveNamespaceMembers } from '../utils/scssModules.js';
 
 // RegExp's
 const reNestedParenthesis = /\(([\w-]+)\(/;
@@ -141,7 +143,8 @@ function parseArgumentsAtLine(text: string): IMixinEntry {
 export async function doSignatureHelp(
 	document: TextDocument,
 	offset: number,
-	storage: StorageService
+	storage: StorageService,
+	importGraph: ImportGraphService
 ): Promise<SignatureHelp> {
 	const suggestions: { name: string; parameters: IVariable[] }[] = [];
 
@@ -165,19 +168,36 @@ export async function doSignatureHelp(
 	const symbolType = textBeforeWord.indexOf('@include') !== -1 ? 'mixins' : 'functions';
 
 	const resource = await parseDocument(document, offset);
+	const documentPath = URI.parse(document.uri).fsPath;
 
 	storage.set(document.uri, resource.symbols);
 
-	getSymbolsCollection(storage).forEach(symbols => {
-		symbols[symbolType].forEach(symbol => {
-			if (entry.name === symbol.name && symbol.parameters.length >= entry.parameters) {
-				suggestions.push({
-					name: symbol.name,
-					parameters: symbol.parameters
-				});
-			}
+	// `entry.name` is a single tokenizer "word", so `ns.mixin-name(` comes
+	// back as the literal string "ns.mixin-name" (confirmed empirically) —
+	// split on the last `.` to detect a namespaced reference.
+	const lastDot = entry.name.lastIndexOf('.');
+	if (lastDot !== -1) {
+		const namespace = entry.name.slice(0, lastDot);
+		const localName = entry.name.slice(lastDot + 1);
+
+		resolveNamespaceMembers(importGraph, documentPath, namespace, symbolType)
+			.filter(member => member.symbol.name === localName && 'parameters' in member.symbol && member.symbol.parameters.length >= entry.parameters)
+			.forEach(member => {
+				const symbol = member.symbol as { name: string; parameters: IVariable[] };
+				suggestions.push({ name: symbol.name, parameters: symbol.parameters });
+			});
+	} else {
+		importGraph.getReachableDocuments(documentPath).forEach(symbols => {
+			symbols[symbolType].forEach(symbol => {
+				if (entry.name === symbol.name && symbol.parameters.length >= entry.parameters) {
+					suggestions.push({
+						name: symbol.name,
+						parameters: symbol.parameters
+					});
+				}
+			});
 		});
-	});
+	}
 
 	if (suggestions.length === 0) {
 		return ret;
