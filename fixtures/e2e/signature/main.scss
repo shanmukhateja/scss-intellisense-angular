@@ -1,3 +1,5 @@
+@import '../_mixins.scss';
+@import '../_functions.scss';
 .test {
   @include square();
   @include square(1,);
