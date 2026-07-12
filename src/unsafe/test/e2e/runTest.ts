@@ -1,7 +1,10 @@
 import * as path from 'path';
 import * as cp from 'child_process';
+import { fileURLToPath } from 'url';
 
 import { runTests, downloadAndUnzipVSCode, resolveCliPathFromVSCodeExecutablePath } from 'vscode-test';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 async function main() {
 	try {

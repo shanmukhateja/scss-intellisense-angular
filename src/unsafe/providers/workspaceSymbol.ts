@@ -3,9 +3,9 @@
 import { SymbolInformation, SymbolKind } from 'vscode-languageserver';
 import { URI } from 'vscode-uri';
 
-import type StorageService from '../services/storage';
-import type { ISymbols } from '../types/symbols';
-import { getSymbolsCollection } from '../utils/symbols';
+import type StorageService from '../services/storage.js';
+import type { ISymbols } from '../types/symbols.js';
+import { getSymbolsCollection } from '../utils/symbols.js';
 
 export async function searchWorkspaceSymbol(
 	query: string,

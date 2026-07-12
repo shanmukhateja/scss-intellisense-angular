@@ -4,13 +4,13 @@ import { SignatureHelp, SignatureInformation } from 'vscode-languageserver';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import { tokenizer } from 'scss-symbols-parser';
 
-import type { IVariable } from '../types/symbols';
-import type StorageService from '../services/storage';
+import type { IVariable } from '../types/symbols.js';
+import type StorageService from '../services/storage.js';
 
-import { parseDocument } from '../services/parser';
-import { getSymbolsCollection } from '../utils/symbols';
-import { getTextBeforePosition } from '../utils/string';
-import { hasInFacts } from '../utils/facts';
+import { parseDocument } from '../services/parser.js';
+import { getSymbolsCollection } from '../utils/symbols.js';
+import { getTextBeforePosition } from '../utils/string.js';
+import { hasInFacts } from '../utils/facts.js';
 
 // RegExp's
 const reNestedParenthesis = /\(([\w-]+)\(/;

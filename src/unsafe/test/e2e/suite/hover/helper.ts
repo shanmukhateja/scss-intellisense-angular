@@ -2,7 +2,7 @@ import * as assert from 'assert';
 
 import * as vscode from 'vscode';
 
-import { showFile } from '../util';
+import { showFile } from '../util.js';
 
 export async function testHover(docUri: vscode.Uri, position: vscode.Position, expectedHover: vscode.Hover) {
 	await showFile(docUri);

@@ -1,7 +1,7 @@
 import * as assert from 'assert';
 
-import StorageService from '../../services/storage';
-import type { IDocumentSymbols } from '../../types/symbols';
+import StorageService from '../../services/storage.js';
+import type { IDocumentSymbols } from '../../types/symbols.js';
 
 describe('Services → Storage', () => {
 	describe('.set & .get', () => {

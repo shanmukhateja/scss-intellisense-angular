@@ -1,6 +1,6 @@
 'use strict';
 
-import { INode, NodeType } from '../types/nodes';
+import { INode, NodeType } from '../types/nodes.js';
 
 /**
  * Get Node by offset position.

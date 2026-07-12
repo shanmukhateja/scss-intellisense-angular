@@ -1,7 +1,7 @@
 'use strict';
 
-import type { IDocumentSymbols } from '../types/symbols';
-import type StorageService from '../services/storage';
+import type { IDocumentSymbols } from '../types/symbols.js';
+import type StorageService from '../services/storage.js';
 
 /**
  * Returns Symbols from all documents.

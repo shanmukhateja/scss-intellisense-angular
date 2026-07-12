@@ -1,14 +1,15 @@
 'use strict';
 
-import { SymbolKind, DocumentLink } from 'vscode-css-languageservice';
+import type { DocumentLink } from 'vscode-css-languageservice';
+import { SymbolKind } from 'vscode-languageserver-types';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import { URI } from 'vscode-uri';
 
-import { INode, NodeType } from '../types/nodes';
-import type { IDocument, IDocumentSymbols, IVariable, IImport } from '../types/symbols';
-import { getNodeAtOffset, getParentNodeByType } from '../utils/ast';
-import { buildDocumentContext } from '../utils/document';
-import { getLanguageService } from '../language-service';
+import { INode, NodeType } from '../types/nodes.js';
+import type { IDocument, IDocumentSymbols, IVariable, IImport } from '../types/symbols.js';
+import { getNodeAtOffset, getParentNodeByType } from '../utils/ast.js';
+import { buildDocumentContext } from '../utils/document.js';
+import { getLanguageService } from '../language-service.js';
 
 const reDynamicPath = /[#{}\*]/;
 

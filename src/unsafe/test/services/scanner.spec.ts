@@ -2,14 +2,14 @@
 
 import * as assert from 'assert';
 import * as path from 'path';
-import * as fs from 'fs';
+import fs from 'fs';
 
 import * as sinon from 'sinon';
 import { Stats } from '@nodelib/fs.macchiato';
 
-import StorageService from '../../services/storage';
-import ScannerService from '../../services/scanner';
-import * as helpers from '../helpers';
+import StorageService from '../../services/storage.js';
+import ScannerService from '../../services/scanner.js';
+import * as helpers from '../helpers.js';
 import { URI } from 'vscode-uri';
 
 class ScannerServiceTest extends ScannerService {

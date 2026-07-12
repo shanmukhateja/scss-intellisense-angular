@@ -7,7 +7,7 @@ import {
 	getVueSCSSRegions,
 	getVueSCSSContent,
 	getSCSSRegionsDocument
-} from '../../utils/vue';
+} from '../../utils/vue.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { Position } from 'vscode-languageserver';
 

@@ -3,10 +3,10 @@ import * as path from 'path';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { URI } from 'vscode-uri';
 
-import type { ISettings } from '../types/settings';
-import { readFile, fileExists } from '../utils/fs';
-import { parseDocument } from './parser';
-import type StorageService from './storage';
+import type { ISettings } from '../types/settings.js';
+import { readFile, fileExists } from '../utils/fs.js';
+import { parseDocument } from './parser.js';
+import type StorageService from './storage.js';
 
 export default class ScannerService {
 	constructor(private readonly _storage: StorageService, private readonly _settings: ISettings) {}

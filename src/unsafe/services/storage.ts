@@ -1,4 +1,4 @@
-import type { IDocumentSymbols } from '../types/symbols';
+import type { IDocumentSymbols } from '../types/symbols.js';
 
 export type Storage = Map<StorageItemKey, StorageItemValue>;
 export type StorageItemEntry = [StorageItemKey, StorageItemValue];

@@ -7,7 +7,7 @@ import {
 	getTextBeforePosition,
 	getTextAfterPosition,
 	getLimitedString
-} from '../../utils/string';
+} from '../../utils/string.js';
 
 describe('Utils/String', () => {
 	it('getCurrentWord', () => {

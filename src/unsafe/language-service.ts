@@ -1,13 +1,13 @@
-import {
+import cssLanguageService, {
 	LanguageService,
 	FileSystemProvider,
-	FileType,
-	getSCSSLanguageService,
 	ICompletionParticipant
 } from 'vscode-css-languageservice';
 import { URI } from 'vscode-uri';
 
-import { statFile } from './utils/fs';
+const { FileType, getSCSSLanguageService } = cssLanguageService;
+
+import { statFile } from './utils/fs.js';
 
 const fileSystemProvider: FileSystemProvider = {
 	async stat(uri: string) {
@@ -32,7 +32,7 @@ const fileSystemProvider: FileSystemProvider = {
 				size: stats.size
 			};
 		} catch (error) {
-			if (error.code !== 'ENOENT') {
+			if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
 				throw error;
 			}
 

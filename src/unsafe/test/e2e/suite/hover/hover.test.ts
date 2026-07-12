@@ -1,5 +1,5 @@
-import { getDocUri, showFile, position, sleep } from '../util';
-import { testHover } from './helper';
+import { getDocUri, showFile, position, sleep } from '../util.js';
+import { testHover } from './helper.js';
 
 describe('SCSS Hover Test', () => {
 	const docUri = getDocUri('hover/main.scss');

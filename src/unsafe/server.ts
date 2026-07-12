@@ -12,18 +12,18 @@ import {
 } from 'vscode-languageserver/node';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 
-import type { ISettings } from './types/settings';
+import type { ISettings } from './types/settings.js';
 
-import ScannerService from './services/scanner';
-import StorageService from './services/storage';
+import ScannerService from './services/scanner.js';
+import StorageService from './services/storage.js';
 
-import { doCompletion } from './providers/completion';
-import { doHover } from './providers/hover';
-import { doSignatureHelp } from './providers/signatureHelp';
-import { goDefinition } from './providers/goDefinition';
-import { searchWorkspaceSymbol } from './providers/workspaceSymbol';
-import { findFiles } from './utils/fs';
-import { getSCSSRegionsDocument } from './utils/vue';
+import { doCompletion } from './providers/completion.js';
+import { doHover } from './providers/hover.js';
+import { doSignatureHelp } from './providers/signatureHelp.js';
+import { goDefinition } from './providers/goDefinition.js';
+import { searchWorkspaceSymbol } from './providers/workspaceSymbol.js';
+import { findFiles } from './utils/fs.js';
+import { getSCSSRegionsDocument } from './utils/vue.js';
 import { URI } from 'vscode-uri';
 
 interface InitializationOption {
@@ -72,7 +72,7 @@ connection.onInitialize(
 			await scannerService.scan(files);
 		} catch (error) {
 			if (settings.showErrors) {
-				connection.window.showErrorMessage(error);
+				connection.window.showErrorMessage((error as Error).stack ?? String(error));
 			}
 		}
 

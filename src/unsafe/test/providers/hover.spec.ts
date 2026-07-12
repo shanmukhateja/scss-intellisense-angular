@@ -4,9 +4,9 @@ import * as assert from 'assert';
 
 import type { Hover } from 'vscode-languageserver';
 
-import StorageService from '../../services/storage';
-import { doHover } from '../../providers/hover';
-import * as helpers from '../helpers';
+import StorageService from '../../services/storage.js';
+import { doHover } from '../../providers/hover.js';
+import * as helpers from '../helpers.js';
 
 const storage = new StorageService();
 

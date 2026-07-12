@@ -2,7 +2,7 @@
 
 import * as assert from 'assert';
 
-import { getDocumentPath } from '../../utils/document';
+import { getDocumentPath } from '../../utils/document.js';
 
 describe('Utils/Document', () => {
 	it('getDocumentPath', () => {

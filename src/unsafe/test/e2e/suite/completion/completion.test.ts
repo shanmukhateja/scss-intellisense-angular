@@ -1,5 +1,5 @@
-import { getDocUri, showFile, position, sleep } from '../util';
-import { testCompletion } from './helper';
+import { getDocUri, showFile, position, sleep } from '../util.js';
+import { testCompletion } from './helper.js';
 
 describe('SCSS Completion Test', () => {
 	const docUri = getDocUri('completion/main.scss');

@@ -4,13 +4,13 @@ import { Location } from 'vscode-languageserver';
 import type { TextDocument, Position } from 'vscode-languageserver-textdocument';
 import { URI } from 'vscode-uri';
 
-import { NodeType } from '../types/nodes';
-import type { IDocumentSymbols, ISymbols } from '../types/symbols';
-import type StorageService from '../services/storage';
+import { NodeType } from '../types/nodes.js';
+import type { IDocumentSymbols, ISymbols } from '../types/symbols.js';
+import type StorageService from '../services/storage.js';
 
-import { parseDocument } from '../services/parser';
-import { getSymbolsRelatedToDocument } from '../utils/symbols';
-import { getDocumentPath } from '../utils/document';
+import { parseDocument } from '../services/parser.js';
+import { getSymbolsRelatedToDocument } from '../utils/symbols.js';
+import { getDocumentPath } from '../utils/document.js';
 
 interface ISymbol {
 	document: string | undefined;
