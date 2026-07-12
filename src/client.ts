@@ -97,7 +97,7 @@ function buildServerOptions(workspace: URI): ServerOptions {
 		debug: {
 			...configuration,
 			options: {
-				execArgv: ['--nolazy', '--inspect=6006'],
+				execArgv: ['--nolazy', '--inspect-brk=6006'],
 			},
 		},
 	};

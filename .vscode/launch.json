@@ -14,7 +14,8 @@
 			"runtimeExecutable": "${execPath}",
 			"args": ["--extensionDevelopmentPath=${workspaceRoot}"],
 			"stopOnEntry": false,
-			"outFiles": ["${workspaceRoot}/out"]
+			"sourceMaps": true,
+			"outFiles": ["${workspaceRoot}/out/**/*.js"]
 		},
 		{
 			"name": "Attach Server",
@@ -22,7 +23,7 @@
 			"request": "attach",
 			"port": 6006,
 			"sourceMaps": true,
-			"outFiles": ["${workspaceFolder}/out"],
+			"outFiles": ["${workspaceFolder}/out/**/*.js"],
 			"protocol": "inspector",
 			"restart": true,
 			"smartStep": true,
@@ -35,12 +36,12 @@
 			"runtimeExecutable": "${execPath}",
 			"args": [
 				"--extensionDevelopmentPath=${workspaceRoot}",
-				"--extensionTestsPath=${workspaceFolder}/out/test/e2e/suite",
+				"--extensionTestsPath=${workspaceFolder}/out/unsafe/test/e2e/suite/index.js",
 				"${workspaceFolder}/fixtures/e2e"
 			],
 			"stopOnEntry": false,
 			"sourceMaps": true,
-			"outFiles": ["${workspaceRoot}/out"],
+			"outFiles": ["${workspaceRoot}/out/**/*.js"],
 			"smartStep": true,
 			"skipFiles": ["<node_internals>/**"]
 		}
