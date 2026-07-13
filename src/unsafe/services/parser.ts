@@ -39,12 +39,17 @@ export async function parseDocument(document: TextDocument, offset: number | nul
 async function findDocumentSymbols(document: TextDocument, ast: INode): Promise<IDocumentSymbols> {
 	const symbols = ls.findDocumentSymbols(document, ast);
 	const links = await findDocumentLinks(document, ast);
-	const { uses, forwards } = collectUseForwardNodes(document, ast, links);
+	const { uses, forwards, consumedLinkOffsets } = collectUseForwardNodes(document, ast, links);
+	// `findDocumentLinks2` returns a link for every `@use`/`@forward`/`@import`
+	// target alike (confirmed empirically) — only genuinely `@import`-derived
+	// links should feed `imports` (and, through it, bare-name reachability),
+	// so the ones already claimed by a `@use`/`@forward` node above are excluded.
+	const importLinks = links.filter(link => !consumedLinkOffsets.has(document.offsetAt(link.range.start)));
 	const customProperties = collectCustomProperties(document, ast);
 
 	const result: IDocumentSymbols = {
 		functions: [],
-		imports: convertLinksToImports(links),
+		imports: convertLinksToImports(importLinks),
 		mixins: [],
 		variables: [],
 		uses,

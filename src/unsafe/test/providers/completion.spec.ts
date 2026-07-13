@@ -221,3 +221,59 @@ describe('Providers/Completion - Custom properties (var(--x))', () => {
 		assert.strictEqual(actual?.items[0]?.label, '--primary');
 	});
 });
+
+describe('Providers/Completion - Sorting', () => {
+	let statStub: sinon.SinonStub;
+
+	beforeEach(() => {
+		statStub = sinon.stub(fs, 'stat').yields(null, new Stats());
+	});
+
+	afterEach(() => {
+		statStub.restore();
+	});
+
+	it('ranks a project variable above a node_modules-sourced one, even when the label would otherwise sort it later', async () => {
+		const localStorage = new StorageService();
+		const localImportGraph = new ImportGraphService(localStorage);
+
+		const localPath = path.join(process.cwd(), 'local.scss');
+		const vendorPath = path.join(process.cwd(), 'node_modules', 'lib', '_vars.scss');
+
+		const emptySymbols = { mixins: [], functions: [], imports: [], uses: [], forwards: [], customProperties: [] };
+
+		localStorage.set(URI.file(localPath).toString(), {
+			document: localPath,
+			filepath: localPath,
+			variables: [{ name: '$zzz-local', value: '1', offset: 0, position: undefined }],
+			...emptySymbols
+		});
+		localStorage.set(URI.file(vendorPath).toString(), {
+			document: vendorPath,
+			filepath: vendorPath,
+			variables: [{ name: '$aaa-vendor', value: '1', offset: 0, position: undefined }],
+			...emptySymbols
+		});
+
+		const text = [
+			'@import "local.scss";',
+			'@import "node_modules/lib/_vars.scss";',
+			'$|'
+		].join('\n');
+		const document = helpers.makeDocument(text.replace('|', ''));
+		const settings = helpers.makeSettings();
+		const offset = text.indexOf('|');
+
+		const actual = await doCompletion(document, offset, settings, localStorage, localImportGraph);
+
+		const local = actual?.items.find(item => item.label === '$zzz-local');
+		const vendor = actual?.items.find(item => item.label === '$aaa-vendor');
+
+		assert.ok(local?.sortText, 'expected the local variable to have a sortText');
+		assert.ok(vendor?.sortText, 'expected the vendor variable to have a sortText');
+		assert.ok(
+			(local?.sortText as string) < (vendor?.sortText as string),
+			`expected local sortText "${local?.sortText}" to sort before vendor sortText "${vendor?.sortText}"`
+		);
+	});
+});

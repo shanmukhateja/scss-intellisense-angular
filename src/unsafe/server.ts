@@ -27,6 +27,7 @@ import { doHover } from './providers/hover.js';
 import { doSignatureHelp } from './providers/signatureHelp.js';
 import { goDefinition } from './providers/goDefinition.js';
 import { searchWorkspaceSymbol } from './providers/workspaceSymbol.js';
+import { doCodeAction } from './providers/codeAction.js';
 import { findFiles } from './utils/fs.js';
 
 interface InitializationOption {
@@ -117,7 +118,8 @@ connection.onInitialize(
 				},
 				hoverProvider: true,
 				definitionProvider: true,
-				workspaceSymbolProvider: true
+				workspaceSymbolProvider: true,
+				codeActionProvider: true
 			}
 		};
 	}
@@ -197,6 +199,15 @@ connection.onDefinition(textDocumentPosition => {
 
 connection.onWorkspaceSymbol(workspaceSymbolParams => {
 	return searchWorkspaceSymbol(workspaceSymbolParams.query, storageService, workspaceRoot);
+});
+
+connection.onCodeAction(params => {
+	const uri = documents.get(params.textDocument.uri);
+	if (uri === undefined) {
+		return [];
+	}
+
+	return doCodeAction(uri, params.range, storageService, importGraphService, settings);
 });
 
 connection.onShutdown(() => {

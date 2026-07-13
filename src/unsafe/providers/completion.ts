@@ -15,6 +15,7 @@ import { getCurrentWord, getLimitedString, getTextBeforePosition } from '../util
 import { getVariableColor } from '../utils/color.js';
 import { resolveNamespaceMembers, type IResolvedModuleSymbol, type ModuleMemberType } from '../utils/scssModules.js';
 import { getCustomPropertyCandidates, type ICustomPropertyCandidate } from '../utils/customProperties.js';
+import { isNodeModulesPath } from '../utils/fs.js';
 
 // RegExp's
 const rePropertyValue = /.*:\s*/;
@@ -31,6 +32,20 @@ const reVarCallOpen = /var\(\s*$/;
 function makeMixinDocumentation(symbol: IMixin): string {
 	const args = symbol.parameters.map(item => `${item.name}: ${item.value}`).join(', ');
 	return `${symbol.name}(${args}) {…}`;
+}
+
+/**
+ * `sortText` for a completion item sourced from `fsPath`: without an
+ * explicit `sortText`, VS Code sorts the (untyped) completion list
+ * alphabetically by label alone, which mixes vendored symbols (reached via
+ * a `~foo/bar` tilde import into `node_modules`) in with the current
+ * project's own — often burying the symbol the user actually wants above
+ * the fold only once they start typing. Prefixing with a priority digit
+ * keeps project symbols first while preserving alphabetical order within
+ * each group.
+ */
+function getSortText(fsPath: string, label: string): string {
+	return `${isNodeModulesPath(fsPath) ? '1' : '0'}${label}`;
 }
 
 /**
@@ -146,6 +161,7 @@ function createVariableCompletionItems(symbols: IDocumentSymbols[], filepath: st
 	const completions: CompletionItem[] = [];
 
 	symbols.forEach(symbol => {
+		const absPath = symbol.filepath || symbol.document || '';
 		const fsPath = getDocumentPath(filepath, symbol.filepath || symbol.document);
 
 		symbol.variables.forEach(variable => {
@@ -162,7 +178,8 @@ function createVariableCompletionItems(symbols: IDocumentSymbols[], filepath: st
 				label: variable.name,
 				kind: completionKind,
 				detail: detailText,
-				documentation: getLimitedString(color ? color.toString() : variable.value || '')
+				documentation: getLimitedString(color ? color.toString() : variable.value || ''),
+				sortText: getSortText(absPath, variable.name)
 			});
 		});
 	});
@@ -174,6 +191,7 @@ function createMixinCompletionItems(symbols: IDocumentSymbols[], filepath: strin
 	const completions: CompletionItem[] = [];
 
 	symbols.forEach(symbol => {
+		const absPath = symbol.filepath || symbol.document || '';
 		const fsPath = getDocumentPath(filepath, symbol.filepath || symbol.document);
 
 		symbol.mixins.forEach(mixin => {
@@ -182,7 +200,8 @@ function createMixinCompletionItems(symbols: IDocumentSymbols[], filepath: strin
 				kind: CompletionItemKind.Function,
 				detail: fsPath,
 				documentation: makeMixinDocumentation(mixin),
-				insertText: mixin.name
+				insertText: mixin.name,
+				sortText: getSortText(absPath, mixin.name)
 			});
 		});
 	});
@@ -194,6 +213,7 @@ function createFunctionCompletionItems(symbols: IDocumentSymbols[], filepath: st
 	const completions: CompletionItem[] = [];
 
 	symbols.forEach(symbol => {
+		const absPath = symbol.filepath || symbol.document || '';
 		const fsPath = getDocumentPath(filepath, symbol.filepath || symbol.document);
 
 		symbol.functions.forEach(func => {
@@ -202,7 +222,8 @@ function createFunctionCompletionItems(symbols: IDocumentSymbols[], filepath: st
 				kind: CompletionItemKind.Interface,
 				detail: fsPath,
 				documentation: makeMixinDocumentation(func),
-				insertText: func.name
+				insertText: func.name,
+				sortText: getSortText(absPath, func.name)
 			});
 		});
 	});
@@ -222,7 +243,8 @@ function createNamespacedMemberCompletionItems(members: IResolvedModuleSymbol[],
 				label: variable.name,
 				kind: color ? CompletionItemKind.Color : CompletionItemKind.Variable,
 				detail,
-				documentation: getLimitedString(color ? color.toString() : variable.value || '')
+				documentation: getLimitedString(color ? color.toString() : variable.value || ''),
+				sortText: getSortText(documentPath, variable.name)
 			};
 		}
 
@@ -233,7 +255,8 @@ function createNamespacedMemberCompletionItems(members: IResolvedModuleSymbol[],
 			kind: memberType === 'mixins' ? CompletionItemKind.Function : CompletionItemKind.Interface,
 			detail,
 			documentation: makeMixinDocumentation(callable),
-			insertText: callable.name
+			insertText: callable.name,
+			sortText: getSortText(documentPath, callable.name)
 		};
 	});
 }
@@ -246,7 +269,8 @@ function createCustomPropertyCompletionItems(candidates: ICustomPropertyCandidat
 			label: property.name,
 			kind: color ? CompletionItemKind.Color : CompletionItemKind.Variable,
 			detail: getDocumentPath(filepath, fsPath),
-			documentation: getLimitedString(color ? color.toString() : property.value || '')
+			documentation: getLimitedString(color ? color.toString() : property.value || ''),
+			sortText: getSortText(fsPath, property.name)
 		};
 	});
 }

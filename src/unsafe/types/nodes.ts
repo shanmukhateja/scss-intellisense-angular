@@ -110,6 +110,7 @@ export interface INode {
 	getDefaultValue(): INode;
 	getText(): string;
 	getParameters(): INode;
+	getArguments(): INode;
 	getIdentifier(): INode;
 	getProperty(): INode;
 

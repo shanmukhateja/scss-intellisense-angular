@@ -74,6 +74,42 @@ export function detectCustomPropertyAccess(node: INode): string | null {
 	return null;
 }
 
+export interface IVarFallbackContext {
+	propertyName: string;
+	callNode: INode;
+	fallbackNode: INode;
+}
+
+/**
+ * Detects `var(--property-name, <fallback>)` with the cursor on the
+ * property-name argument, and returns the whole call node (for a
+ * whole-expression replace range) plus the fallback argument. `var()`'s two
+ * arguments are `FunctionArgument` children of the `Function` node's
+ * `Nodelist` (confirmed empirically — `getArguments().getChildren()` gives
+ * `[FunctionArgument(name), FunctionArgument(fallback)?]`, mirroring how
+ * `scssModules.ts` documents similar `vscode-css-languageservice` node-shape
+ * quirks rather than assuming them from the type declarations alone).
+ */
+export function detectVarFallbackContext(node: INode): IVarFallbackContext | null {
+	const propertyName = detectCustomPropertyAccess(node);
+	if (propertyName === null) {
+		return null;
+	}
+
+	const callNode = getParentNodeByType(node, NodeType.Function);
+	if (callNode === null || callNode.getName() !== 'var') {
+		return null;
+	}
+
+	const args = callNode.getArguments().getChildren();
+	const fallbackNode = args[1];
+	if (fallbackNode === undefined) {
+		return null;
+	}
+
+	return { propertyName, callNode, fallbackNode };
+}
+
 export interface ICustomPropertyCandidate {
 	fsPath: string;
 	property: ICustomProperty;

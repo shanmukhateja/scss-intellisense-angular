@@ -54,9 +54,15 @@ export function collectUseForwardNodes(
 	document: TextDocument,
 	ast: INode,
 	links: DocumentLink[]
-): { uses: IResolvedUse[]; forwards: IResolvedForward[] } {
+): { uses: IResolvedUse[]; forwards: IResolvedForward[]; consumedLinkOffsets: Set<number> } {
 	const uses: IResolvedUse[] = [];
 	const forwards: IResolvedForward[] = [];
+	// Offsets of `@use`/`@forward` path nodes that were matched against a
+	// document link — `parser.ts` excludes these from `imports`, since
+	// `findDocumentLinks2` returns a link for every `@use`/`@forward`/`@import`
+	// target alike, and only `@import` should feed bare-name reachability
+	// (`ImportGraphService.getReachableDocuments`).
+	const consumedLinkOffsets = new Set<number>();
 
 	ast.accept(node => {
 		if (node.type === NodeType.Use) {
@@ -64,6 +70,8 @@ export function collectUseForwardNodes(
 			if (pathNode === undefined) {
 				return true;
 			}
+
+			consumedLinkOffsets.add(pathNode.offset);
 
 			const targetRaw = stripQuotes(pathNode.getText());
 			const identifier = node.getIdentifier();
@@ -82,6 +90,8 @@ export function collectUseForwardNodes(
 			if (pathNode === undefined) {
 				return true;
 			}
+
+			consumedLinkOffsets.add(pathNode.offset);
 
 			const targetRaw = stripQuotes(pathNode.getText());
 			const identifier = node.getIdentifier();
@@ -122,7 +132,7 @@ export function collectUseForwardNodes(
 		return true;
 	});
 
-	return { uses, forwards };
+	return { uses, forwards, consumedLinkOffsets };
 }
 
 export type ModuleMemberType = 'variables' | 'mixins' | 'functions';

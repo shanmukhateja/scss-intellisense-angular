@@ -38,6 +38,17 @@ export function fileExistsSync(filepath: string): boolean {
 }
 
 /**
+ * True if `filepath` has a `node_modules` path segment (works for both `/`
+ * and `\` separators, so it's safe to call with un-normalized paths). Used
+ * to rank vendored symbols (e.g. reached via a `~foo/bar` tilde import)
+ * below the current project's own symbols in completion, rather than mixed
+ * in alphabetically.
+ */
+export function isNodeModulesPath(filepath: string): boolean {
+	return filepath.replace(/\\/g, '/').split('/').includes('node_modules');
+}
+
+/**
  * Read file by specified filepath;
  */
 export function readFile(filepath: string): Promise<string> {
