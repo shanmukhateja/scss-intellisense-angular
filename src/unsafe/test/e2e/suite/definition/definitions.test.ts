@@ -1,5 +1,5 @@
-import { getDocUri, showFile, position, sleep, sameLineLocation } from '../util';
-import { testDefinition } from './helper';
+import { getDocUri, showFile, position, sleep, sameLineLocation } from '../util.js';
+import { testDefinition } from './helper.js';
 
 describe('SCSS Definition Test', () => {
 	const docUri = getDocUri('definition/main.scss');

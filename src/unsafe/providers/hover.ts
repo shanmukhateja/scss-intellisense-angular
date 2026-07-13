@@ -4,14 +4,14 @@ import { Hover, MarkupContent, MarkupKind } from 'vscode-languageserver';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import { URI } from 'vscode-uri';
 
-import { NodeType } from '../types/nodes';
-import type { IDocumentSymbols, IVariable, IMixin, IFunction, ISymbols } from '../types/symbols';
-import type StorageService from '../services/storage';
+import { NodeType } from '../types/nodes.js';
+import type { IDocumentSymbols, IVariable, IMixin, IFunction, ISymbols } from '../types/symbols.js';
+import type StorageService from '../services/storage.js';
 
-import { parseDocument } from '../services/parser';
-import { getSymbolsCollection } from '../utils/symbols';
-import { getDocumentPath } from '../utils/document';
-import { getLimitedString } from '../utils/string';
+import { parseDocument } from '../services/parser.js';
+import { getSymbolsCollection } from '../utils/symbols.js';
+import { getDocumentPath } from '../utils/document.js';
+import { getLimitedString } from '../utils/string.js';
 
 type Identifier = { type: keyof ISymbols; name: string };
 

@@ -1,11 +1,15 @@
 import * as path from 'path';
 
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import { getSCSSLanguageService, MarkupContent, MarkupKind, Position, Range } from 'vscode-css-languageservice';
+import { MarkupKind, Position, Range } from 'vscode-languageserver-types';
+import type { MarkupContent } from 'vscode-css-languageservice';
+import cssLanguageService from 'vscode-css-languageservice';
 import { URI } from 'vscode-uri';
 
-import type { INode } from '../types/nodes';
-import type { ISettings } from '../types/settings';
+import type { INode } from '../types/nodes.js';
+import type { ISettings } from '../types/settings.js';
+
+const { getSCSSLanguageService } = cssLanguageService;
 
 const ls = getSCSSLanguageService();
 

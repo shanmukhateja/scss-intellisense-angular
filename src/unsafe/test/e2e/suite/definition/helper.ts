@@ -2,7 +2,7 @@ import * as assert from 'assert';
 
 import * as vscode from 'vscode';
 
-import { showFile } from '../util';
+import { showFile } from '../util.js';
 
 export async function testDefinition(docUri: vscode.Uri, position: vscode.Position, expectedLocation: vscode.Location) {
 	await showFile(docUri);

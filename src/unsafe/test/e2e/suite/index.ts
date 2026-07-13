@@ -1,7 +1,10 @@
 import * as path from 'path';
+import { fileURLToPath } from 'url';
 
-import * as Mocha from 'mocha';
-import * as fg from 'fast-glob';
+import Mocha from 'mocha';
+import fg from 'fast-glob';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const ONE_SECOND_IN_MS = 1 * 1000;
 

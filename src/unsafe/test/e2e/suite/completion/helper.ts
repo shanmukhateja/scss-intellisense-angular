@@ -2,7 +2,7 @@ import * as assert from 'assert';
 
 import * as vscode from 'vscode';
 import type { CompletionItem, MarkupContent } from 'vscode-languageclient';
-import { showFile } from '../util';
+import { showFile } from '../util.js';
 
 export async function testCompletion(
 	docUri: vscode.Uri,

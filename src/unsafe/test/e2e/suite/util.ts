@@ -1,6 +1,9 @@
 import * as path from 'path';
+import { fileURLToPath } from 'url';
 
 import * as vscode from 'vscode';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /**
  * Line and Char as shown in lowerright of VS Code

@@ -1,7 +1,7 @@
 'use strict';
 
 import type { Position } from 'vscode-languageserver-textdocument';
-import type { INode } from './nodes';
+import type { INode } from './nodes.js';
 
 export interface IVariable {
 	position?: Position;

@@ -4,15 +4,15 @@ import { CompletionList, CompletionItemKind, CompletionItem } from 'vscode-langu
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import { URI } from 'vscode-uri';
 
-import type { IMixin, IDocumentSymbols } from '../types/symbols';
-import type { ISettings } from '../types/settings';
-import type StorageService from '../services/storage';
+import type { IMixin, IDocumentSymbols } from '../types/symbols.js';
+import type { ISettings } from '../types/settings.js';
+import type StorageService from '../services/storage.js';
 
-import { parseDocument } from '../services/parser';
-import { getSymbolsRelatedToDocument } from '../utils/symbols';
-import { getDocumentPath } from '../utils/document';
-import { getCurrentWord, getLimitedString, getTextBeforePosition } from '../utils/string';
-import { getVariableColor } from '../utils/color';
+import { parseDocument } from '../services/parser.js';
+import { getSymbolsRelatedToDocument } from '../utils/symbols.js';
+import { getDocumentPath } from '../utils/document.js';
+import { getCurrentWord, getLimitedString, getTextBeforePosition } from '../utils/string.js';
+import { getVariableColor } from '../utils/color.js';
 
 // RegExp's
 const rePropertyValue = /.*:\s*/;

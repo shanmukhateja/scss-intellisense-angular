@@ -4,10 +4,10 @@ import * as assert from 'assert';
 
 import { CompletionItemKind, CompletionList } from 'vscode-languageserver';
 
-import StorageService from '../../services/storage';
-import { doCompletion } from '../../providers/completion';
-import * as helpers from '../helpers';
-import type { ISettings } from '../../types/settings';
+import StorageService from '../../services/storage.js';
+import { doCompletion } from '../../providers/completion.js';
+import * as helpers from '../helpers.js';
+import type { ISettings } from '../../types/settings.js';
 
 const storage = new StorageService();
 

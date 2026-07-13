@@ -1,16 +1,16 @@
 'use strict';
 
 import * as assert from 'assert';
-import * as fs from 'fs';
+import fs from 'fs';
 
 import * as sinon from 'sinon';
 import { Stats } from '@nodelib/fs.macchiato';
 import type { DocumentLink } from 'vscode-languageclient';
 
-import { parseDocument, convertLinksToImports } from '../../services/parser';
-import * as helpers from '../helpers';
-import { NodeType } from '../../types/nodes';
-import type { IImport } from '../../types/symbols';
+import { parseDocument, convertLinksToImports } from '../../services/parser.js';
+import * as helpers from '../helpers.js';
+import { NodeType } from '../../types/nodes.js';
+import type { IImport } from '../../types/symbols.js';
 
 describe('Services/Parser', () => {
 	describe('.parseDocument', () => {

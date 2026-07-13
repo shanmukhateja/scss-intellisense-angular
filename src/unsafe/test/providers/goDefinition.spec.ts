@@ -4,9 +4,9 @@ import * as assert from 'assert';
 
 import { URI } from 'vscode-uri';
 
-import StorageService from '../../services/storage';
-import { goDefinition } from '../../providers/goDefinition';
-import * as helpers from '../helpers';
+import StorageService from '../../services/storage.js';
+import { goDefinition } from '../../providers/goDefinition.js';
+import * as helpers from '../helpers.js';
 
 const storage = new StorageService();
 

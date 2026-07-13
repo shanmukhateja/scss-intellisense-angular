@@ -1,12 +1,15 @@
-import * as path from 'path';
+import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import * as vscode from 'vscode';
-import type { URI } from 'vscode-uri';
-import type { LanguageClientOptions, NodeModule, ServerOptions } from 'vscode-languageclient/node';
 import { LanguageClient, TransportKind, RevealOutputChannelOn } from 'vscode-languageclient/node';
 
-import { EXTENSION_ID, EXTENSION_NAME } from './constants';
+import { EXTENSION_ID, EXTENSION_NAME } from './constants.js';
 
+import type { URI } from 'vscode-uri';
+import type { LanguageClientOptions, NodeModule, ServerOptions } from 'vscode-languageclient/node';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const EXTENSION_SERVER_MODULE_PATH = path.join(__dirname, './unsafe/server.js');
 const EXTENSION_DEFAULT_DEBUG_PORT = -1;
 
@@ -15,7 +18,7 @@ const clients: Map<string, LanguageClient> = new Map<string, LanguageClient>();
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
 	context.subscriptions.push(
 		vscode.workspace.onDidChangeWorkspaceFolders(changeWorkspaceFoldersEventHandler),
-		vscode.window.onDidChangeActiveTextEditor(changeActiveTextEditorEventHandler)
+		vscode.window.onDidChangeActiveTextEditor(changeActiveTextEditorEventHandler),
 	);
 
 	await changeActiveTextEditorEventHandler(vscode.window.activeTextEditor);
@@ -29,7 +32,7 @@ async function changeWorkspaceFoldersEventHandler(event: vscode.WorkspaceFolders
 	await Promise.all(event.removed.map((folder) => clients.get(folder.uri.fsPath)?.stop()));
 }
 
-async function changeActiveTextEditorEventHandler(editor: vscode.TextEditor | undefined): Promise<void> {
+async function changeActiveTextEditorEventHandler(editor: undefined | vscode.TextEditor): Promise<void> {
 	const document = editor?.document;
 	const uri = document?.uri;
 
@@ -58,19 +61,17 @@ async function initializeClient(workspace: vscode.WorkspaceFolder): Promise<Lang
 	return vscode.window.withProgress(
 		{
 			title: `[${workspace.name}] Starting SCSS IntelliSense server`,
-			location: vscode.ProgressLocation.Window
+			location: vscode.ProgressLocation.Window,
 		},
 		async () => {
-			client.start();
-
 			try {
-				await client.onReady();
+				await client.start();
 			} catch (error: unknown) {
 				await vscode.window.showErrorMessage(`Client initialization failed. ${(error as Error).stack ?? '<empty_stack>'}`);
 			}
 
 			return client;
-		}
+		},
 	);
 }
 
@@ -85,20 +86,20 @@ function buildServerOptions(workspace: URI): ServerOptions {
 		module: EXTENSION_SERVER_MODULE_PATH,
 		transport: TransportKind.ipc,
 		options: {
-			execArgv: extensionServerPort === EXTENSION_DEFAULT_DEBUG_PORT ? [] : [`--inspect=${extensionServerPort}`]
-		}
+			execArgv: extensionServerPort === EXTENSION_DEFAULT_DEBUG_PORT ? [] : [`--inspect=${extensionServerPort}`],
+		},
 	};
 
 	return {
 		run: {
-			...configuration
+			...configuration,
 		},
 		debug: {
 			...configuration,
 			options: {
-				execArgv: ['--nolazy', '--inspect=6006']
-			}
-		}
+				execArgv: ['--nolazy', '--inspect=6006'],
+			},
+		},
 	};
 }
 
@@ -107,25 +108,25 @@ function buildClientOptions(workspace: URI): LanguageClientOptions {
 	 * The workspace path is used to separate clients in multi-workspace environment.
 	 * Otherwise, each client will participate in each workspace.
 	 */
-	const pattern = `${workspace.fsPath.replace(/\\/g, '/')}/**`;
+	const pattern = `${workspace.fsPath.replaceAll('\\', '/')}/**`;
 
 	return {
 		documentSelector: [
 			{ scheme: 'file', language: 'scss', pattern },
-			{ scheme: 'file', language: 'vue', pattern }
+			{ scheme: 'file', language: 'vue', pattern },
 		],
 		synchronize: {
 			configurationSection: ['scss'],
 			fileEvents: vscode.workspace.createFileSystemWatcher({
 				base: workspace.fsPath,
-				pattern: '**/*.scss'
-			})
+				pattern: '**/*.scss',
+			}),
 		},
 		initializationOptions: {
 			workspace: workspace.fsPath,
-			settings: vscode.workspace.getConfiguration('scss', workspace)
+			settings: vscode.workspace.getConfiguration('scss', workspace),
 		},
 		// Don't open the output console (very annoying) in case of error
-		revealOutputChannelOn: RevealOutputChannelOn.Never
+		revealOutputChannelOn: RevealOutputChannelOn.Never,
 	};
 }
