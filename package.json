@@ -3,7 +3,7 @@
 	"type": "module",
 	"displayName": "SCSS IntelliSense for Angular",
 	"description": "Advanced autocompletion, hover, and go-to-definition for SCSS in Angular projects",
-	"version": "0.10.0",
+	"version": "0.0.1",
 	"preview": true,
 	"publisher": "shanmukhateja",
 	"author": {
