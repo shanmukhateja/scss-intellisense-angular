@@ -113,14 +113,22 @@ function buildClientOptions(workspace: URI): LanguageClientOptions {
 	return {
 		documentSelector: [
 			{ scheme: 'file', language: 'scss', pattern },
-			{ scheme: 'file', language: 'vue', pattern },
 		],
 		synchronize: {
 			configurationSection: ['scss'],
-			fileEvents: vscode.workspace.createFileSystemWatcher({
-				base: workspace.fsPath,
-				pattern: '**/*.scss',
-			}),
+			fileEvents: [
+				vscode.workspace.createFileSystemWatcher({
+					base: workspace.fsPath,
+					pattern: '**/*.scss',
+				}),
+				// Watched separately (not part of the scss glob above) so the
+				// server can reload Angular includePaths/project config when
+				// it changes, without a full window reload.
+				vscode.workspace.createFileSystemWatcher({
+					base: workspace.fsPath,
+					pattern: 'angular.json',
+				}),
+			],
 		},
 		initializationOptions: {
 			workspace: workspace.fsPath,

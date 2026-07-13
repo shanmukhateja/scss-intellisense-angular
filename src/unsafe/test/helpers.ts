@@ -47,12 +47,17 @@ export function makeSettings(options?: Partial<ISettings>): ISettings {
 		scannerDepth: 30,
 		scannerExclude: ['**/.git', '**/node_modules', '**/bower_components'],
 		scanImportedFiles: true,
-		implicitlyLabel: '(implicitly)',
 		showErrors: false,
 		suggestVariables: true,
 		suggestMixins: true,
 		suggestFunctions: true,
 		suggestFunctionsInStringContextAfterSymbols: ' (+-*%',
+		angular: {
+			includePaths: []
+		},
+		customProperties: {
+			scope: 'workspace'
+		},
 		...options
 	};
 }

@@ -4,15 +4,18 @@ import { CompletionList, CompletionItemKind, CompletionItem } from 'vscode-langu
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import { URI } from 'vscode-uri';
 
-import type { IMixin, IDocumentSymbols } from '../types/symbols.js';
+import type { IMixin, IVariable, IFunction, IDocumentSymbols } from '../types/symbols.js';
 import type { ISettings } from '../types/settings.js';
 import type StorageService from '../services/storage.js';
+import type ImportGraphService from '../services/importGraph.js';
 
 import { parseDocument } from '../services/parser.js';
-import { getSymbolsRelatedToDocument } from '../utils/symbols.js';
 import { getDocumentPath } from '../utils/document.js';
 import { getCurrentWord, getLimitedString, getTextBeforePosition } from '../utils/string.js';
 import { getVariableColor } from '../utils/color.js';
+import { resolveNamespaceMembers, type IResolvedModuleSymbol, type ModuleMemberType } from '../utils/scssModules.js';
+import { getCustomPropertyCandidates, type ICustomPropertyCandidate } from '../utils/customProperties.js';
+import { isNodeModulesPath } from '../utils/fs.js';
 
 // RegExp's
 const rePropertyValue = /.*:\s*/;
@@ -21,24 +24,28 @@ const reQuotedValueInString = /['"](?:[^'"\\]|\\.)*['"]/g;
 const reMixinReference = /.*@include\s+(.*)/;
 const reComment = /^(\/(\/|\*)|\*)/;
 const reQuotes = /['"]/;
-
-/**
- * Returns `true` if the path is not present in the document.
- */
-function isImplicitly(symbolsDocument: string | undefined, documentPath: string, documentImports: string[]): boolean {
-	if (symbolsDocument === undefined) {
-		return true;
-	}
-
-	return symbolsDocument !== documentPath && documentImports.indexOf(symbolsDocument) === -1;
-}
+const reVarCallOpen = /var\(\s*$/;
 
 /**
  * Return Mixin as string.
  */
 function makeMixinDocumentation(symbol: IMixin): string {
 	const args = symbol.parameters.map(item => `${item.name}: ${item.value}`).join(', ');
-	return `${symbol.name}(${args}) {\u2026}`;
+	return `${symbol.name}(${args}) {…}`;
+}
+
+/**
+ * `sortText` for a completion item sourced from `fsPath`: without an
+ * explicit `sortText`, VS Code sorts the (untyped) completion list
+ * alphabetically by label alone, which mixes vendored symbols (reached via
+ * a `~foo/bar` tilde import into `node_modules`) in with the current
+ * project's own — often burying the symbol the user actually wants above
+ * the fold only once they start typing. Prefixing with a priority digit
+ * keeps project symbols first while preserving alphabetical order within
+ * each group.
+ */
+function getSortText(fsPath: string, label: string): string {
+	return `${isNodeModulesPath(fsPath) ? '1' : '0'}${label}`;
 }
 
 /**
@@ -88,12 +95,37 @@ function checkFunctionContext(
 	return false;
 }
 
+/**
+ * Check context for custom property (`var(--x)`) suggestions.
+ */
+function checkCustomPropertyContext(word: string, textBeforeWord: string): boolean {
+	return word.startsWith('--') || reVarCallOpen.test(textBeforeWord);
+}
+
 function isCommentContext(text: string): boolean {
 	return reComment.test(text.trim());
 }
 
 function isInterpolationContext(text: string): boolean {
 	return text.includes('#{');
+}
+
+/**
+ * A `namespace.member` (or `namespace.` with nothing typed yet) currently
+ * being written. Text-based (like the rest of this file's context detection)
+ * rather than AST-based, since completion routinely runs on syntactically
+ * incomplete text mid-edit.
+ */
+function detectNamespacedWord(word: string): { namespace: string; memberPrefix: string } | null {
+	const dotIndex = word.indexOf('.');
+	if (dotIndex === -1) {
+		return null;
+	}
+
+	return {
+		namespace: word.slice(0, dotIndex),
+		memberPrefix: word.slice(dotIndex + 1)
+	};
 }
 
 function createCompletionContext(document: TextDocument, offset: number, settings: ISettings) {
@@ -119,34 +151,25 @@ function createCompletionContext(document: TextDocument, offset: number, setting
 			isQuotes,
 			settings
 		),
-		mixin: checkMixinContext(textBeforeWord, isPropertyValue)
+		mixin: checkMixinContext(textBeforeWord, isPropertyValue),
+		customProperty: checkCustomPropertyContext(currentWord, textBeforeWord),
+		namespace: detectNamespacedWord(currentWord)
 	};
 }
 
-function createVariableCompletionItems(
-	symbols: IDocumentSymbols[],
-	filepath: string,
-	imports: string[],
-	settings: ISettings
-): CompletionItem[] {
+function createVariableCompletionItems(symbols: IDocumentSymbols[], filepath: string): CompletionItem[] {
 	const completions: CompletionItem[] = [];
 
 	symbols.forEach(symbol => {
-		const isImplicitlyImport = isImplicitly(symbol.document, filepath, imports);
-		const fsPath = getDocumentPath(filepath, isImplicitlyImport ? symbol.filepath : symbol.document);
+		const absPath = symbol.filepath || symbol.document || '';
+		const fsPath = getDocumentPath(filepath, symbol.filepath || symbol.document);
 
 		symbol.variables.forEach(variable => {
 			const color = getVariableColor(variable.value || '');
 			const completionKind = color ? CompletionItemKind.Color : CompletionItemKind.Variable;
 
-			// Add 'implicitly' prefix for Path if the file imported implicitly
-			let detailPath = fsPath;
-			if (isImplicitlyImport && settings.implicitlyLabel) {
-				detailPath = settings.implicitlyLabel + ' ' + detailPath;
-			}
-
 			// Add 'argument from MIXIN_NAME' suffix if Variable is Mixin argument
-			let detailText = detailPath;
+			let detailText = fsPath;
 			if (variable.mixin) {
 				detailText = `argument from ${variable.mixin}, ${detailText}`;
 			}
@@ -155,7 +178,8 @@ function createVariableCompletionItems(
 				label: variable.name,
 				kind: completionKind,
 				detail: detailText,
-				documentation: getLimitedString(color ? color.toString() : variable.value || '')
+				documentation: getLimitedString(color ? color.toString() : variable.value || ''),
+				sortText: getSortText(absPath, variable.name)
 			});
 		});
 	});
@@ -163,31 +187,21 @@ function createVariableCompletionItems(
 	return completions;
 }
 
-function createMixinCompletionItems(
-	symbols: IDocumentSymbols[],
-	filepath: string,
-	imports: string[],
-	settings: ISettings
-): CompletionItem[] {
+function createMixinCompletionItems(symbols: IDocumentSymbols[], filepath: string): CompletionItem[] {
 	const completions: CompletionItem[] = [];
 
 	symbols.forEach(symbol => {
-		const isImplicitlyImport = isImplicitly(symbol.document, filepath, imports);
-		const fsPath = getDocumentPath(filepath, isImplicitlyImport ? symbol.filepath : symbol.document);
+		const absPath = symbol.filepath || symbol.document || '';
+		const fsPath = getDocumentPath(filepath, symbol.filepath || symbol.document);
 
 		symbol.mixins.forEach(mixin => {
-			// Add 'implicitly' prefix for Path if the file imported implicitly
-			let detailPath = fsPath;
-			if (isImplicitlyImport && settings.implicitlyLabel) {
-				detailPath = settings.implicitlyLabel + ' ' + detailPath;
-			}
-
 			completions.push({
 				label: mixin.name,
 				kind: CompletionItemKind.Function,
-				detail: detailPath,
+				detail: fsPath,
 				documentation: makeMixinDocumentation(mixin),
-				insertText: mixin.name
+				insertText: mixin.name,
+				sortText: getSortText(absPath, mixin.name)
 			});
 		});
 	});
@@ -195,43 +209,78 @@ function createMixinCompletionItems(
 	return completions;
 }
 
-function createFunctionCompletionItems(
-	symbols: IDocumentSymbols[],
-	filepath: string,
-	imports: string[],
-	settings: ISettings
-): CompletionItem[] {
+function createFunctionCompletionItems(symbols: IDocumentSymbols[], filepath: string): CompletionItem[] {
 	const completions: CompletionItem[] = [];
 
 	symbols.forEach(symbol => {
-		const isImplicitlyImport = isImplicitly(symbol.document, filepath, imports);
-		const fsPath = getDocumentPath(filepath, isImplicitlyImport ? symbol.filepath : symbol.document);
+		const absPath = symbol.filepath || symbol.document || '';
+		const fsPath = getDocumentPath(filepath, symbol.filepath || symbol.document);
 
 		symbol.functions.forEach(func => {
-			// Add 'implicitly' prefix for Path if the file imported implicitly
-			let detailPath = fsPath;
-			if (isImplicitlyImport && settings.implicitlyLabel) {
-				detailPath = settings.implicitlyLabel + ' ' + detailPath;
-			}
-
 			completions.push({
 				label: func.name,
 				kind: CompletionItemKind.Interface,
-				detail: detailPath,
+				detail: fsPath,
 				documentation: makeMixinDocumentation(func),
-				insertText: func.name
+				insertText: func.name,
+				sortText: getSortText(absPath, func.name)
 			});
 		});
 	});
 
 	return completions;
+}
+
+function createNamespacedMemberCompletionItems(members: IResolvedModuleSymbol[], filepath: string, memberType: ModuleMemberType): CompletionItem[] {
+	return members.map(({ symbol, documentPath }) => {
+		const detail = getDocumentPath(filepath, documentPath);
+
+		if (memberType === 'variables') {
+			const variable = symbol as IVariable;
+			const color = getVariableColor(variable.value || '');
+
+			return {
+				label: variable.name,
+				kind: color ? CompletionItemKind.Color : CompletionItemKind.Variable,
+				detail,
+				documentation: getLimitedString(color ? color.toString() : variable.value || ''),
+				sortText: getSortText(documentPath, variable.name)
+			};
+		}
+
+		const callable = symbol as IMixin | IFunction;
+
+		return {
+			label: callable.name,
+			kind: memberType === 'mixins' ? CompletionItemKind.Function : CompletionItemKind.Interface,
+			detail,
+			documentation: makeMixinDocumentation(callable),
+			insertText: callable.name,
+			sortText: getSortText(documentPath, callable.name)
+		};
+	});
+}
+
+function createCustomPropertyCompletionItems(candidates: ICustomPropertyCandidate[], filepath: string): CompletionItem[] {
+	return candidates.map(({ property, fsPath }) => {
+		const color = getVariableColor(property.value || '');
+
+		return {
+			label: property.name,
+			kind: color ? CompletionItemKind.Color : CompletionItemKind.Variable,
+			detail: getDocumentPath(filepath, fsPath),
+			documentation: getLimitedString(color ? color.toString() : property.value || ''),
+			sortText: getSortText(fsPath, property.name)
+		};
+	});
 }
 
 export async function doCompletion(
 	document: TextDocument,
 	offset: number,
 	settings: ISettings,
-	storage: StorageService
+	storage: StorageService,
+	importGraph: ImportGraphService
 ): Promise<CompletionList | null> {
 	const completions = CompletionList.create([], false);
 
@@ -241,8 +290,6 @@ export async function doCompletion(
 
 	storage.set(document.uri, resource.symbols);
 
-	const symbolsList = getSymbolsRelatedToDocument(storage, documentPath);
-	const documentImports = resource.symbols.imports.map(x => x.filepath);
 	const context = createCompletionContext(document, offset, settings);
 
 	// Drop suggestions inside `//` and `/* */` comments
@@ -250,20 +297,52 @@ export async function doCompletion(
 		return completions;
 	}
 
+	// `namespace.` / `namespace.partial-member` — resolve through the @use
+	// edge instead of the reachable-set/custom-property paths below.
+	if (context.namespace !== null) {
+		const { namespace } = context.namespace;
+
+		if (settings.suggestVariables && context.variable) {
+			const members = resolveNamespaceMembers(importGraph, documentPath, namespace, 'variables');
+			completions.items = completions.items.concat(createNamespacedMemberCompletionItems(members, documentPath, 'variables'));
+		}
+
+		if (settings.suggestMixins && context.mixin) {
+			const members = resolveNamespaceMembers(importGraph, documentPath, namespace, 'mixins');
+			completions.items = completions.items.concat(createNamespacedMemberCompletionItems(members, documentPath, 'mixins'));
+		}
+
+		if (settings.suggestFunctions && context.function) {
+			const members = resolveNamespaceMembers(importGraph, documentPath, namespace, 'functions');
+			completions.items = completions.items.concat(createNamespacedMemberCompletionItems(members, documentPath, 'functions'));
+		}
+
+		return completions;
+	}
+
+	if (context.customProperty) {
+		const candidates = getCustomPropertyCandidates(storage, settings);
+		completions.items = completions.items.concat(createCustomPropertyCompletionItems(candidates, documentPath));
+
+		return completions;
+	}
+
+	const symbolsList = importGraph.getReachableDocuments(documentPath);
+
 	if (settings.suggestVariables && context.variable) {
-		const variables = createVariableCompletionItems(symbolsList, documentPath, documentImports, settings);
+		const variables = createVariableCompletionItems(symbolsList, documentPath);
 
 		completions.items = completions.items.concat(variables);
 	}
 
 	if (settings.suggestMixins && context.mixin) {
-		const mixins = createMixinCompletionItems(symbolsList, documentPath, documentImports, settings);
+		const mixins = createMixinCompletionItems(symbolsList, documentPath);
 
 		completions.items = completions.items.concat(mixins);
 	}
 
 	if (settings.suggestFunctions && context.function) {
-		const functions = createFunctionCompletionItems(symbolsList, documentPath, documentImports, settings);
+		const functions = createFunctionCompletionItems(symbolsList, documentPath);
 
 		completions.items = completions.items.concat(functions);
 	}

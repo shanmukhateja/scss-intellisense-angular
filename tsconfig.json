@@ -9,6 +9,7 @@
 
 		"rootDir": "src",
 		"outDir": "out",
+		"sourceMap": true,
 
 		"strict": true,
 		"alwaysStrict": true,

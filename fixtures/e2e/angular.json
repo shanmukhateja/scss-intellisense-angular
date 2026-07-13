@@ -1,0 +1,16 @@
+{
+	"projects": {
+		"app": {
+			"root": "angular-app",
+			"architect": {
+				"build": {
+					"options": {
+						"stylePreprocessorOptions": {
+							"includePaths": ["angular-app/styles"]
+						}
+					}
+				}
+			}
+		}
+	}
+}

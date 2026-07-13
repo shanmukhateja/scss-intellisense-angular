@@ -14,7 +14,10 @@ describe('Utils/Symbols', () => {
 			variables: [],
 			mixins: [],
 			functions: [],
-			imports: []
+			imports: [],
+			uses: [],
+			forwards: [],
+			customProperties: []
 		});
 
 		assert.strictEqual(getSymbolsCollection(storage).length, 1);

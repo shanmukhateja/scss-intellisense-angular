@@ -70,6 +70,25 @@ describe('Services/Parser', () => {
 			assert.ok(symbols.imports[0]?.filepath.endsWith('file.scss'));
 		});
 
+		it('does not leak @use/@forward targets into imports (only genuine @import does)', async () => {
+			const document = helpers.makeDocument([
+				'@import "legacy.scss";',
+				"@use 'vars.scss' as v;",
+				"@forward 'buttons.scss';"
+			]);
+
+			const { symbols } = await parseDocument(document, null);
+
+			assert.strictEqual(symbols.imports.length, 1);
+			assert.ok(symbols.imports[0]?.filepath.endsWith('legacy.scss'));
+
+			assert.strictEqual(symbols.uses.length, 1);
+			assert.ok(symbols.uses[0]?.resolvedPath?.endsWith('vars.scss'));
+
+			assert.strictEqual(symbols.forwards.length, 1);
+			assert.ok(symbols.forwards[0]?.resolvedPath?.endsWith('buttons.scss'));
+		});
+
 		it('should return Node at offset', async () => {
 			const lines = [
 				'$name: "value";',

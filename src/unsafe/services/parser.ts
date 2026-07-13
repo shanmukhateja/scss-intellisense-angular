@@ -10,6 +10,8 @@ import type { IDocument, IDocumentSymbols, IVariable, IImport } from '../types/s
 import { getNodeAtOffset, getParentNodeByType } from '../utils/ast.js';
 import { buildDocumentContext } from '../utils/document.js';
 import { getLanguageService } from '../language-service.js';
+import { collectUseForwardNodes } from '../utils/scssModules.js';
+import { collectCustomProperties } from '../utils/customProperties.js';
 
 const reDynamicPath = /[#{}\*]/;
 
@@ -37,12 +39,22 @@ export async function parseDocument(document: TextDocument, offset: number | nul
 async function findDocumentSymbols(document: TextDocument, ast: INode): Promise<IDocumentSymbols> {
 	const symbols = ls.findDocumentSymbols(document, ast);
 	const links = await findDocumentLinks(document, ast);
+	const { uses, forwards, consumedLinkOffsets } = collectUseForwardNodes(document, ast, links);
+	// `findDocumentLinks2` returns a link for every `@use`/`@forward`/`@import`
+	// target alike (confirmed empirically) — only genuinely `@import`-derived
+	// links should feed `imports` (and, through it, bare-name reachability),
+	// so the ones already claimed by a `@use`/`@forward` node above are excluded.
+	const importLinks = links.filter(link => !consumedLinkOffsets.has(document.offsetAt(link.range.start)));
+	const customProperties = collectCustomProperties(document, ast);
 
 	const result: IDocumentSymbols = {
 		functions: [],
-		imports: convertLinksToImports(links),
+		imports: convertLinksToImports(importLinks),
 		mixins: [],
-		variables: []
+		variables: [],
+		uses,
+		forwards,
+		customProperties
 	};
 
 	for (const symbol of symbols) {

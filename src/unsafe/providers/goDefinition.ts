@@ -7,15 +7,18 @@ import { URI } from 'vscode-uri';
 import { NodeType } from '../types/nodes.js';
 import type { IDocumentSymbols, ISymbols } from '../types/symbols.js';
 import type StorageService from '../services/storage.js';
+import type ImportGraphService from '../services/importGraph.js';
+import type { ISettings } from '../types/settings.js';
 
 import { parseDocument } from '../services/parser.js';
-import { getSymbolsRelatedToDocument } from '../utils/symbols.js';
 import { getDocumentPath } from '../utils/document.js';
+import { detectModuleAccess, resolveNamespacedSymbol } from '../utils/scssModules.js';
+import { detectCustomPropertyAccess, getCustomPropertyCandidates, resolveCustomProperty } from '../utils/customProperties.js';
 
 interface ISymbol {
 	document: string | undefined;
 	path: string;
-	info: any;
+	info: { name: string; position?: Position };
 }
 
 interface IIdentifier {
@@ -33,25 +36,24 @@ function samePosition(a: Position | undefined, b: Position): boolean {
 }
 
 /**
- * Returns the Symbol, if it present in the documents.
+ * Returns bare-name matches across `symbolList` — a scoped list (the entry
+ * document's `getReachableDocuments()` result), not the whole workspace, so
+ * `candidates[0]` below is now a meaningful choice rather than an arbitrary
+ * first-in-map-order pick.
  */
 function getSymbols(symbolList: IDocumentSymbols[], identifier: IIdentifier, currentPath: string): ISymbol[] {
 	const list: ISymbol[] = [];
 
 	for (const symbols of symbolList) {
-		const fsPath = getDocumentPath(currentPath, symbols.document);
-
 		if (identifier.type === 'imports') {
 			continue;
 		}
 
+		const fsPath = getDocumentPath(currentPath, symbols.document);
+
 		for (const item of symbols[identifier.type]) {
-			if (item.name === identifier.name && !samePosition(item.position, identifier.position)) {
-				list.push({
-					document: symbols.filepath,
-					path: fsPath,
-					info: item
-				});
+			if (item && item.name === identifier.name && !samePosition(item.position, identifier.position)) {
+				list.push({ document: symbols.filepath, path: fsPath, info: item });
 			}
 		}
 	}
@@ -59,7 +61,24 @@ function getSymbols(symbolList: IDocumentSymbols[], identifier: IIdentifier, cur
 	return list;
 }
 
-export async function goDefinition(document: TextDocument, offset: number, storage: StorageService): Promise<Location | null> {
+function locationFromNamedPosition(documentPath: string, name: string, position: Position | undefined): Location | null {
+	if (position === undefined) {
+		return null;
+	}
+
+	return Location.create(URI.file(documentPath).toString(), {
+		start: position,
+		end: { line: position.line, character: position.character + name.length }
+	});
+}
+
+export async function goDefinition(
+	document: TextDocument,
+	offset: number,
+	storage: StorageService,
+	importGraph: ImportGraphService,
+	settings: ISettings
+): Promise<Location | null> {
 	const documentPath = URI.parse(document.uri).fsPath;
 
 	const resource = await parseDocument(document, offset);
@@ -68,6 +87,34 @@ export async function goDefinition(document: TextDocument, offset: number, stora
 		return null;
 	}
 
+	if (resource.symbols.document !== undefined) {
+		storage.set(document.uri, resource.symbols);
+	}
+
+	// Namespaced access (`ns.$x`, `ns.fn()`, `@include ns.mixin()`).
+	const moduleAccess = detectModuleAccess(hoverNode);
+	if (moduleAccess !== null) {
+		const resolved = resolveNamespacedSymbol(importGraph, documentPath, moduleAccess.namespace, moduleAccess.memberName, moduleAccess.memberType);
+		if (resolved === null) {
+			return null;
+		}
+
+		return locationFromNamedPosition(resolved.documentPath, resolved.symbol.name, resolved.symbol.position);
+	}
+
+	// CSS custom property (`var(--x)`).
+	const customPropertyName = detectCustomPropertyAccess(hoverNode);
+	if (customPropertyName !== null) {
+		const candidates = getCustomPropertyCandidates(storage, settings);
+		const match = resolveCustomProperty(candidates, customPropertyName);
+		if (match === undefined) {
+			return null;
+		}
+
+		return locationFromNamedPosition(match.fsPath, match.property.name, match.property.position);
+	}
+
+	// Bare-name access ($x, mixin-name(...), function-name(...)).
 	let identifier: IIdentifier | null = null;
 	if (hoverNode.type === NodeType.VariableName) {
 		const parent = hoverNode.getParent();
@@ -104,31 +151,17 @@ export async function goDefinition(document: TextDocument, offset: number, stora
 		return null;
 	}
 
-	if (resource.symbols.document !== undefined) {
-		storage.set(document.uri, resource.symbols);
-	}
+	const symbolsList = importGraph.getReachableDocuments(documentPath);
 
-	const symbolsList = getSymbolsRelatedToDocument(storage, documentPath);
-
-	// Symbols
 	const candidates = getSymbols(symbolsList, identifier, documentPath);
 	if (candidates.length === 0) {
 		return null;
 	}
 
 	const definition = candidates[0];
-
 	if (definition?.document === undefined) {
 		return null;
 	}
 
-	const symbol = Location.create(URI.file(definition.document).toString(), {
-		start: definition.info.position,
-		end: {
-			line: definition.info.position.line,
-			character: definition.info.position.character + definition.info.name.length
-		}
-	});
-
-	return symbol;
+	return locationFromNamedPosition(definition.document, definition.info.name, definition.info.position);
 }

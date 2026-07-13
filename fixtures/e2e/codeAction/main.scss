@@ -1,0 +1,5 @@
+$brand: #ff0000;
+:root { --accent: #00ff00; }
+.a { color: #ff0000; }
+.b { color: var(--missing, #00ff00); }
+.c { color: #00ff00; }

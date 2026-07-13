@@ -1,23 +1,31 @@
 {
-	"name": "vscode-scss",
+	"name": "scss-intellisense-angular",
 	"type": "module",
-	"displayName": "SCSS IntelliSense",
-	"description": "Advanced autocompletion and refactoring support for SCSS",
+	"displayName": "SCSS IntelliSense for Angular",
+	"description": "Advanced autocompletion, hover, and go-to-definition for SCSS in Angular projects",
 	"version": "0.10.0",
 	"preview": true,
-	"publisher": "mrmlnc",
+	"publisher": "shanmukhateja",
+	"author": {
+		"name": "Surya Teja K",
+		"email": "shanmukhateja@gmail.com"
+	},
 	"license": "MIT",
 	"engines": {
 		"vscode": "^1.53.0"
 	},
 	"icon": "icon.png",
-	"homepage": "https://github.com/mrmlnc/vscode-scss/blob/master/README.md",
+	"homepage": "https://github.com/shanmukhateja/scss-intellisense-angular/blob/master/README.md",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/mrmlnc/vscode-scss"
+		"url": "https://github.com/shanmukhateja/scss-intellisense-angular"
+	},
+	"bugs": {
+		"url": "https://github.com/shanmukhateja/scss-intellisense-angular/issues"
 	},
 	"keywords": [
 		"scss",
+		"angular",
 		"autocompletion",
 		"intellisense",
 		"refactor"
@@ -26,8 +34,7 @@
 		"Programming Languages"
 	],
 	"activationEvents": [
-		"onLanguage:scss",
-		"onLanguage:vue"
+		"onLanguage:scss"
 	],
 	"main": "./out/client.js",
 	"contributes": {
@@ -53,15 +60,7 @@
 				"scss.scanImportedFiles": {
 					"type": "boolean",
 					"default": true,
-					"description": "Allows scan imported files."
-				},
-				"scss.implicitlyLabel": {
-					"type": [
-						"string",
-						"null"
-					],
-					"default": "(implicitly)",
-					"description": "The text of a label that the file imported implicitly. If `null` then label not displayed."
+					"description": "Eagerly follow @import/@use/@forward edges during the initial workspace scan, to warm the cache with files the scss glob might have missed. Does not control which symbols are suggested for a given file — that's decided by its own @use/@import chain plus scss.customProperties.scope for CSS custom properties."
 				},
 				"scss.showErrors": {
 					"type": "boolean",
@@ -92,12 +91,30 @@
 					"type": "number",
 					"description": "The port that SCSS IntelliSense server listens to. Can be used for attaching to the server Node process for debugging / profiling.",
 					"default": -1
+				},
+				"scss.angular.includePaths": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"default": [],
+					"description": "Extra directories (workspace-relative or absolute) to search for bare-specifier @use/@import/@forward targets, in addition to angular.json's own stylePreprocessorOptions.includePaths. Entries resolving outside the current workspace folder are ignored."
+				},
+				"scss.customProperties.scope": {
+					"type": "string",
+					"enum": [
+						"workspace",
+						"root-selectors"
+					],
+					"default": "workspace",
+					"description": "Controls which CSS custom properties (--x) are suggested/resolved across files. \"workspace\": any --x declared anywhere is available everywhere (matches real CSS cascade behavior). \"root-selectors\": only --x declared inside a :root/html/body selector counts as global."
 				}
 			}
 		}
 	},
 	"devDependencies": {
 		"@nodelib/fs.macchiato": "3.0.0",
+		"@vscode/vsce": "3.9.2",
 		"@types/color": "4.2.1",
 		"@types/color-name": "2.0.0",
 		"@types/mocha": "10.0.10",
@@ -131,6 +148,8 @@
 		"test": "mocha \"out/**/*.spec.js\"",
 		"test:e2e": "node ./out/unsafe/test/e2e/runTest.js",
 		"build": "npm run clean && npm run lint && npm run compile && npm test",
-		"watch": "npm run clean && npm run lint && tsc --watch"
+		"watch": "npm run clean && npm run lint && tsc --watch",
+		"vscode:prepublish": "npm run clean && npm run compile",
+		"build:vsix": "vsce package --out release/"
 	}
 }
