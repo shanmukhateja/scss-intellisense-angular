@@ -2,15 +2,12 @@
 .vscode-test/**
 .claude/**
 release/**
-.github/**
-.ci/**
 typings/**
 fixtures/**
 src/**
 out/**/*.spec.*
 .editorconfig
 .gitignore
-.mergify.yml
 tsconfig.json
 eslint.config.js
 .eslintcache

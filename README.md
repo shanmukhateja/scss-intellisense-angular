@@ -105,7 +105,7 @@ Allows prompt Functions in String context after specified symbols. For example, 
 * Type: `number`
 * Default: `-1`
 
-Launches the SCSS IntelliSense server at a specific port for debugging and profiling. Used for [filing performance issue](./.github/PERF_ISSUE.md).
+Launches the SCSS IntelliSense server at a specific port for debugging and profiling.
 
 ## Questions
 
