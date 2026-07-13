@@ -114,6 +114,7 @@
 	},
 	"devDependencies": {
 		"@nodelib/fs.macchiato": "3.0.0",
+		"@vscode/vsce": "3.9.2",
 		"@types/color": "4.2.1",
 		"@types/color-name": "2.0.0",
 		"@types/mocha": "10.0.10",
@@ -147,6 +148,8 @@
 		"test": "mocha \"out/**/*.spec.js\"",
 		"test:e2e": "node ./out/unsafe/test/e2e/runTest.js",
 		"build": "npm run clean && npm run lint && npm run compile && npm test",
-		"watch": "npm run clean && npm run lint && tsc --watch"
+		"watch": "npm run clean && npm run lint && tsc --watch",
+		"vscode:prepublish": "npm run clean && npm run compile",
+		"build:vsix": "vsce package --out release/"
 	}
 }

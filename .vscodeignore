@@ -1,4 +1,7 @@
 .vscode/**
+.vscode-test/**
+.claude/**
+release/**
 .github/**
 .ci/**
 typings/**
@@ -9,6 +12,6 @@ out/**/*.spec.*
 .gitignore
 .mergify.yml
 tsconfig.json
-.eslintrc.json
+eslint.config.js
 .eslintcache
 *.vsix
