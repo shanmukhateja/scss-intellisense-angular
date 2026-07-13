@@ -1,0 +1,13 @@
+@use 'tokens' as tokens;
+
+.foo {
+	padding: tokens.$spacing-unit;
+}
+
+.bar {
+	@include tokens.flex-center;
+}
+
+.baz {
+	color: tokens.$;
+}
