@@ -1,20 +1,27 @@
 {
-	"name": "vscode-scss",
+	"name": "scss-intellisense-angular",
 	"type": "module",
 	"displayName": "SCSS IntelliSense for Angular",
 	"description": "Advanced autocompletion, hover, and go-to-definition for SCSS in Angular projects",
 	"version": "0.10.0",
 	"preview": true,
-	"publisher": "mrmlnc",
+	"publisher": "shanmukhateja",
+	"author": {
+		"name": "Surya Teja K",
+		"email": "shanmukhateja@gmail.com"
+	},
 	"license": "MIT",
 	"engines": {
 		"vscode": "^1.53.0"
 	},
 	"icon": "icon.png",
-	"homepage": "https://github.com/mrmlnc/vscode-scss/blob/master/README.md",
+	"homepage": "https://github.com/shanmukhateja/scss-intellisense-angular/blob/master/README.md",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/mrmlnc/vscode-scss"
+		"url": "https://github.com/shanmukhateja/scss-intellisense-angular"
+	},
+	"bugs": {
+		"url": "https://github.com/shanmukhateja/scss-intellisense-angular/issues"
 	},
 	"keywords": [
 		"scss",

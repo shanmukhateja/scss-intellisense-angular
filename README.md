@@ -1,19 +1,13 @@
-# vscode-scss
+# scss-intellisense-angular
 
 > SCSS IntelliSense (Variables, Mixins and Functions) for Angular projects.
-
-## Donation
-
-Do you like this project? Support it by donating, creating an issue or pull request.
-
-[![Donate](https://img.shields.io/badge/Donate-PayPal-green.svg)](https://paypal.me/mrmlnc)
 
 ## Install
 
 Plugin installation is performed in several stages:
 
 * Press <kbd>F1</kbd> and select `Extensions: Install Extensions`.
-* Search and choose `vscode-scss`.
+* Search and choose `scss-intellisense-angular`.
 
 See the [extension installation guide](https://code.visualstudio.com/docs/editor/extension-gallery) for details.
 
@@ -127,7 +121,7 @@ You must perform several steps:
 
 ## Changelog
 
-See the [Releases section of our GitHub project](https://github.com/mrmlnc/vscode-scss/releases) for changelogs for each release version.
+See the [Releases section of our GitHub project](https://github.com/shanmukhateja/scss-intellisense-angular/releases) for changelogs for each release version.
 
 ## License
 
