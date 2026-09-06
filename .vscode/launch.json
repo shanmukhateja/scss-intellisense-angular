@@ -15,7 +15,8 @@
 			"args": ["--extensionDevelopmentPath=${workspaceRoot}"],
 			"stopOnEntry": false,
 			"sourceMaps": true,
-			"outFiles": ["${workspaceRoot}/out/**/*.js"]
+			"outFiles": ["${workspaceRoot}/dist/**/*.js"],
+			"preLaunchTask": "${defaultBuildTask}"
 		},
 		{
 			"name": "Attach Server",
@@ -23,7 +24,7 @@
 			"request": "attach",
 			"port": 6006,
 			"sourceMaps": true,
-			"outFiles": ["${workspaceFolder}/out/**/*.js"],
+			"outFiles": ["${workspaceFolder}/dist/**/*.js"],
 			"protocol": "inspector",
 			"restart": true,
 			"smartStep": true,

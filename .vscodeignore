@@ -5,27 +5,17 @@ release/**
 typings/**
 fixtures/**
 src/**
-out/unsafe/test/**
-out/**/*.map
-out/**/*.d.ts
+out/**
+dist/**/*.map
+esbuild.js
+
+# esbuild bundles every dependency into dist/ except vscode-css-languageservice
+# (see esbuild.js). Trim its unused ESM build and all type/sourcemap files.
 node_modules/**/*.ts
 node_modules/**/*.map
 node_modules/**/*.tsbuildinfo
-node_modules/**/.eslintcache
-node_modules/**/*.yml
-node_modules/**/README.md
-node_modules/**/CHANGELOG.md
-node_modules/**/HISTORY.md
-node_modules/typescript/lib/tsserver.js
-node_modules/typescript/lib/tsserverlibrary.js
-node_modules/typescript/lib/typescriptServices.js
-node_modules/typescript/lib/typingsInstaller.js
-node_modules/typescript/lib/tsc.js
-node_modules/typescript/lib/_tsc.js
-node_modules/typescript/lib/_tsserver.js
-node_modules/typescript/lib/_typingsInstaller.js
-node_modules/typescript/lib/*/diagnosticMessages.generated.json
-node_modules/typescript/bin/**
+node_modules/vscode-css-languageservice/lib/esm/**
+
 .editorconfig
 .gitignore
 .gitattributes
