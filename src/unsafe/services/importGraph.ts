@@ -23,47 +23,61 @@ export default class ImportGraphService {
 	}
 
 	/**
-	 * Resolves a `@use`/`@forward` edge to an fs path. Uses the path already
+	 * Resolves a `@use`/`@forward` edge to an fs path. Prefers the path already
 	 * resolved by `vscode-css-languageservice` at parse time (relative/`~`/
-	 * underscore-partial resolution) if available. Otherwise — a bare
-	 * specifier with no relative/`~` prefix that the standard resolver
-	 * couldn't place — falls back to probing each of `fromDocumentPath`'s
-	 * Angular include paths (`angular.json`'s `stylePreprocessorOptions
-	 * .includePaths` plus `scss.angular.includePaths`), mirroring Sass's own
-	 * load-path search order: declared order, first match wins.
+	 * underscore-partial resolution) when it points at a file that exists —
+	 * that wins over the load path, matching Sass. `findDocumentLinks2` hands
+	 * back a document-relative guess for *every* target though, so a bare
+	 * `@use 'tokens'` (resolvable only through the load path) arrives with a
+	 * bogus non-existent sibling path; when the pre-resolved path is missing
+	 * or not on disk, probe each of `fromDocumentPath`'s Angular include paths
+	 * (`angular.json`'s `stylePreprocessorOptions.includePaths` plus
+	 * `scss.angular.includePaths`) in declared order, first match wins. If
+	 * nothing on the load path matches either, the (possibly unstattable)
+	 * pre-resolved path is returned as-is.
 	 *
 	 * `@import` edges aren't covered here (`IImport` only carries an
 	 * already-resolved `filepath`, no raw target to retry) — acceptable since
 	 * `@import` is the legacy construct this fork isn't optimizing for.
 	 */
 	public resolveEdgeTarget(fromDocumentPath: string, edge: IResolvedUse | IResolvedForward): string | undefined {
-		if (edge.resolvedPath !== undefined) {
-			return edge.resolvedPath;
+		const preResolved = edge.resolvedPath;
+
+		// A pre-resolved path that points at a real file is authoritative
+		// (relative/`~`/underscore-partial resolution, and it wins over the
+		// load path, matching Sass).
+		if (preResolved !== undefined && fileExistsSync(preResolved)) {
+			return preResolved;
 		}
 
-		if (this.angularWorkspace === undefined) {
-			return undefined;
-		}
+		// Otherwise try the Angular load path. `findDocumentLinks2` resolves a
+		// bare `@use 'tokens'` to a bogus sibling path that never exists, so
+		// reaching this branch on a non-existent `preResolved` is exactly the
+		// includePaths case.
+		if (this.angularWorkspace !== undefined) {
+			const dir = path.dirname(edge.targetRaw);
+			const dirPrefix = dir === '.' ? '' : dir;
+			const base = path.basename(edge.targetRaw);
 
-		const dir = path.dirname(edge.targetRaw);
-		const dirPrefix = dir === '.' ? '' : dir;
-		const base = path.basename(edge.targetRaw);
+			for (const includePath of this.angularWorkspace.getIncludePaths(fromDocumentPath)) {
+				const candidates = [
+					path.join(includePath, dirPrefix, base),
+					path.join(includePath, dirPrefix, `${base}.scss`),
+					path.join(includePath, dirPrefix, `_${base}.scss`),
+					path.join(includePath, dirPrefix, `_${base}`)
+				];
 
-		for (const includePath of this.angularWorkspace.getIncludePaths(fromDocumentPath)) {
-			const candidates = [
-				path.join(includePath, dirPrefix, base),
-				path.join(includePath, dirPrefix, `${base}.scss`),
-				path.join(includePath, dirPrefix, `_${base}.scss`),
-				path.join(includePath, dirPrefix, `_${base}`)
-			];
-
-			const match = candidates.find(candidate => fileExistsSync(candidate));
-			if (match !== undefined) {
-				return match;
+				const match = candidates.find(candidate => fileExistsSync(candidate));
+				if (match !== undefined) {
+					return match;
+				}
 			}
 		}
 
-		return undefined;
+		// No load-path hit: fall back to whatever the standard resolver gave
+		// us, even if we couldn't stat it (in-memory documents, and callers
+		// that only need the path to key storage).
+		return preResolved;
 	}
 
 	/**

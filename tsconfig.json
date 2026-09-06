@@ -34,5 +34,6 @@
 		"stripInternal": true,
 
 		"pretty": true
-	}
+	},
+	"include": ["src"]
 }

@@ -20,4 +20,8 @@ describe('SCSS Code Action Test', () => {
 	it('Offers a whole-call replacement for var(--undeclared, #fallback)', async () => {
 		await testCodeActionTitles(docUri, position(4, 20), ['Replace with var(--accent) (current)']);
 	});
+
+	it('Offers the whole-call replacement with the caret on the fallback color literal', async () => {
+		await testCodeActionTitles(docUri, position(4, 31), ['Replace with var(--accent) (current)']);
+	});
 });

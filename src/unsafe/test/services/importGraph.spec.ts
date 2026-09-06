@@ -172,15 +172,40 @@ describe('Services/ImportGraph', () => {
 			} as unknown as AngularWorkspaceService;
 		}
 
-		it('uses the already-resolved path when present, without touching includePaths', () => {
+		it('uses the already-resolved path when it exists on disk, without touching includePaths', () => {
+			const root = fs.mkdtempSync(path.join(os.tmpdir(), 'vscode-scss-importgraph-'));
+			const resolvedPath = path.join(root, '_vars.scss');
+			fs.writeFileSync(resolvedPath, '$primary: blue;');
+
 			const storage = new StorageService();
 			const graph = new ImportGraphService(storage, makeAngularWorkspace(['/should/not/be/used']));
 
 			const resolved = graph.resolveEdgeTarget('/proj/component.scss', {
-				namespace: 'vars', wildcard: false, resolvedPath: '/proj/_vars.scss', targetRaw: 'vars'
+				namespace: 'vars', wildcard: false, resolvedPath, targetRaw: 'vars'
 			});
 
-			assert.strictEqual(resolved, '/proj/_vars.scss');
+			assert.strictEqual(resolved, resolvedPath);
+
+			fs.rmSync(root, { recursive: true, force: true });
+		});
+
+		it('ignores a pre-resolved path that does not exist and falls back to includePaths', () => {
+			// `findDocumentLinks2` resolves a bare `@use 'variables'` to a bogus
+			// sibling path; trusting it blindly would shadow the includePaths hit.
+			const root = fs.mkdtempSync(path.join(os.tmpdir(), 'vscode-scss-importgraph-'));
+			fs.mkdirSync(path.join(root, 'styles'));
+			fs.writeFileSync(path.join(root, 'styles', '_variables.scss'), '$primary: blue;');
+
+			const storage = new StorageService();
+			const graph = new ImportGraphService(storage, makeAngularWorkspace([path.join(root, 'styles')]));
+
+			const resolved = graph.resolveEdgeTarget('/proj/src/component.scss', {
+				namespace: 'vars', wildcard: false, resolvedPath: '/proj/src/variables', targetRaw: 'variables'
+			});
+
+			assert.strictEqual(resolved, path.join(root, 'styles', '_variables.scss'));
+
+			fs.rmSync(root, { recursive: true, force: true });
 		});
 
 		it('falls back to probing includePaths for a bare specifier the standard resolver could not place', () => {

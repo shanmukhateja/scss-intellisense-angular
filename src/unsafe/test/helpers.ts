@@ -42,7 +42,14 @@ export function makeSameLineRange(line: number = 1, start: number = 1, end: numb
 	return Range.create(Position.create(line, start), Position.create(line, end));
 }
 
-export function makeSettings(options?: Partial<ISettings>): ISettings {
+type DeepPartialSettings = Partial<Omit<ISettings, 'angular' | 'customProperties'>> & {
+	angular?: Partial<ISettings['angular']>;
+	customProperties?: Partial<ISettings['customProperties']>;
+};
+
+export function makeSettings(options: DeepPartialSettings = {}): ISettings {
+	const { angular, customProperties, ...rest } = options;
+
 	return {
 		scannerDepth: 30,
 		scannerExclude: ['**/.git', '**/node_modules', '**/bower_components'],
@@ -52,13 +59,16 @@ export function makeSettings(options?: Partial<ISettings>): ISettings {
 		suggestMixins: true,
 		suggestFunctions: true,
 		suggestFunctionsInStringContextAfterSymbols: ' (+-*%',
+		...rest,
 		angular: {
-			includePaths: []
+			includePaths: [],
+			componentStyles: true,
+			...angular
 		},
 		customProperties: {
-			scope: 'workspace'
-		},
-		...options
+			scope: 'workspace',
+			...customProperties
+		}
 	};
 }
 

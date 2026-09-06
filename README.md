@@ -27,6 +27,7 @@ Just install the plugin and use it.
 * Namespace-aware `@use ... as ns` / `@forward` support: `ns.$variable`, `ns.mixin-name()`, `ns.function-name()` resolve through the actual namespace (including through `@forward` re-export chains with `show`/`hide`/prefix), not by bare-name guessing.
 * Angular `stylePreprocessorOptions.includePaths` (from `angular.json`, plus the `scss.angular.includePaths` setting) are used to resolve bare-specifier `@use`/`@import`/`@forward` targets — no more `../../../` relative-path spaghetti.
 * CSS custom properties (`--x`) are treated as a separate, workspace-global symbol kind: `var(--primary)` gets completion, hover (with the declared value), and goto-def to the declaration, with zero `@use` required — matching how custom properties actually cascade at runtime.
+* SCSS inside an Angular component's inline `styles` (in a `.ts` file) gets hover, goto-definition and the color quick-fix while that file is open — parsed lazily via the TypeScript compiler, with `${…}` interpolations ignored. Toggle with `scss.angular.componentStyles`. External `styleUrls` files are ordinary `.scss` and already covered. Completion inside inline `styles` is not offered yet.
 
 ## Supported settings
 
@@ -57,6 +58,13 @@ Eagerly follows `@import`/`@use`/`@forward` edges during the initial workspace s
 * Default: `[]`
 
 Extra directories (workspace-relative or absolute) to search for bare-specifier `@use`/`@import`/`@forward` targets, concatenated after `angular.json`'s own `stylePreprocessorOptions.includePaths` for the owning project. Entries resolving outside the current workspace folder are ignored.
+
+#### scss.angular.componentStyles
+
+* Type: `boolean`
+* Default: `true`
+
+Enable hover, goto-definition and the color quick-fix for SCSS written inside an Angular component's inline `styles` (a `.ts` file). Parsing is lazy — only files open in the editor are parsed, via the bundled `typescript` compiler (pinned to a version compatible with the project's target Angular release). `$variable` quick-fix targets are limited to the same file, since a new `@use` can't be inserted into a `.ts` host.
 
 #### scss.customProperties.scope
 

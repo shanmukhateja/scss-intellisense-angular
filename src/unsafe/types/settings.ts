@@ -32,6 +32,13 @@ export interface ISettings {
 		 * VS Code workspace root are ignored.
 		 */
 		includePaths: string[];
+		/**
+		 * Whether SCSS inside an Angular component's inline `styles` (in a
+		 * `.ts` file) gets hover, goto-definition and color quick-fixes while
+		 * that file is open. Parsing happens lazily per open document, so this
+		 * is really just an escape hatch.
+		 */
+		componentStyles: boolean;
 	};
 
 	// Custom properties (--x)

@@ -81,29 +81,39 @@ export interface IVarFallbackContext {
 }
 
 /**
- * Detects `var(--property-name, <fallback>)` with the cursor on the
- * property-name argument, and returns the whole call node (for a
- * whole-expression replace range) plus the fallback argument. `var()`'s two
- * arguments are `FunctionArgument` children of the `Function` node's
- * `Nodelist` (confirmed empirically — `getArguments().getChildren()` gives
- * `[FunctionArgument(name), FunctionArgument(fallback)?]`, mirroring how
+ * Detects `var(--property-name, <fallback>)` with the cursor on **either** the
+ * property-name argument or anywhere inside the fallback, and returns the whole
+ * call node (for a whole-expression replace range) plus the fallback argument.
+ * `var()`'s two arguments are `FunctionArgument` children of the `Function`
+ * node's `Nodelist` (confirmed empirically — `getArguments().getChildren()`
+ * gives `[FunctionArgument(name), FunctionArgument(fallback)?]`, mirroring how
  * `scssModules.ts` documents similar `vscode-css-languageservice` node-shape
  * quirks rather than assuming them from the type declarations alone).
+ *
+ * Accepting the cursor-in-fallback case is what lets the code action replace the
+ * *entire* `var(...)` when the caret sits on the fallback color literal, instead
+ * of nesting a second `var()` inside the fallback slot.
  */
 export function detectVarFallbackContext(node: INode): IVarFallbackContext | null {
-	const propertyName = detectCustomPropertyAccess(node);
-	if (propertyName === null) {
-		return null;
-	}
-
 	const callNode = getParentNodeByType(node, NodeType.Function);
 	if (callNode === null || callNode.getName() !== 'var') {
 		return null;
 	}
 
 	const args = callNode.getArguments().getChildren();
+	const nameNode = args[0];
 	const fallbackNode = args[1];
-	if (fallbackNode === undefined) {
+	if (nameNode === undefined || fallbackNode === undefined) {
+		return null;
+	}
+
+	const propertyName = nameNode.getText().trim();
+	if (!propertyName.startsWith('--')) {
+		return null;
+	}
+
+	const within = (target: INode): boolean => node.offset >= target.offset && node.end <= target.end;
+	if (!within(nameNode) && !within(fallbackNode)) {
 		return null;
 	}
 

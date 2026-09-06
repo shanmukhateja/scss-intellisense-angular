@@ -5,6 +5,9 @@ import { URI } from 'vscode-uri';
 
 import type { ISettings } from '../types/settings.js';
 import { readFile, fileExists } from '../utils/fs.js';
+import { extractStyleRegions } from '../utils/angularComponentStyles.js';
+import { buildBlankedText } from '../utils/blankedDocument.js';
+import { hasComponentStyles } from '../utils/componentStyleGuard.js';
 import { parseDocument } from './parser.js';
 import type StorageService from './storage.js';
 
@@ -29,7 +32,28 @@ export default class ScannerService {
 			}
 
 			const content = await this._readFile(filepath);
-			const document = TextDocument.create(uri, 'scss', 1, content);
+
+			let text = content;
+			if (filepath.endsWith('.ts')) {
+				// A `.ts` file only contributes SCSS through an Angular component's
+				// inline `styles`; blank everything else so offsets stay absolute.
+				if (!hasComponentStyles(content)) {
+					this._storage.delete(uri);
+
+					continue;
+				}
+
+				const regions = extractStyleRegions(content);
+				if (regions.styleSpans.length === 0) {
+					this._storage.delete(uri);
+
+					continue;
+				}
+
+				text = buildBlankedText(content, regions.styleSpans, regions.interpolationSpans);
+			}
+
+			const document = TextDocument.create(uri, 'scss', 1, text);
 			const { symbols } = await parseDocument(document, null);
 
 			this._storage.set(uri, { ...symbols, filepath });
