@@ -35,7 +35,13 @@ function makeDoc(overrides: Partial<IDocumentSymbols> & { filepath: string }): I
 	};
 }
 
-async function codeActionAt(lines: string[], storage: StorageService, importGraph: ImportGraphService, settings?: Partial<ISettings>): Promise<CodeAction[]> {
+async function codeActionAt(
+	lines: string[],
+	storage: StorageService,
+	importGraph: ImportGraphService,
+	settings?: Partial<ISettings>,
+	embedded = false
+): Promise<CodeAction[]> {
 	const text = lines.join('\n');
 	const offset = text.indexOf('|');
 	const uri = URI.file(fsPath('main.scss')).toString();
@@ -43,7 +49,7 @@ async function codeActionAt(lines: string[], storage: StorageService, importGrap
 
 	const position = document.positionAt(offset);
 
-	return doCodeAction(document, { start: position, end: position }, storage, importGraph, helpers.makeSettings(settings));
+	return doCodeAction(document, { start: position, end: position }, storage, importGraph, helpers.makeSettings(settings), embedded);
 }
 
 function titles(actions: CodeAction[]): string[] {
@@ -256,6 +262,72 @@ describe('Providers/CodeAction', () => {
 			const actions = await codeActionAt(['.a { color: var(--wo|nt-exist2, #FFF); }'], storage, importGraph);
 
 			assert.deepStrictEqual(titles(actions), ['Replace with var(--white) (tokens.scss)']);
+		});
+
+		it('replaces the whole call when the caret is on the fallback color literal (no nested var())', async () => {
+			const storage = new StorageService();
+			const importGraph = new ImportGraphService(storage);
+
+			storage.set(URI.file(fsPath('tokens.scss')).toString(), makeDoc({
+				filepath: fsPath('tokens.scss'),
+				customProperties: [{ name: '--real', value: '#ff0000', offset: 0, position: { line: 0, character: 0 }, isRootScope: true }]
+			}));
+
+			const actions = await codeActionAt([
+				'.a { color: var(--wont-exist, #ff00|00); }'
+			], storage, importGraph);
+
+			assert.deepStrictEqual(titles(actions), ['Replace with var(--real) (tokens.scss)']);
+
+			const edit = actions[0]?.edit?.changes?.[URI.file(fsPath('main.scss')).toString()];
+			assert.strictEqual(edit?.length, 1);
+			assert.deepStrictEqual(edit?.[0]?.range, {
+				start: { line: 0, character: 12 },
+				end: { line: 0, character: 38 }
+			});
+			assert.strictEqual(edit?.[0]?.newText, 'var(--real)');
+		});
+	});
+
+	describe('embedded in an Angular component .ts file', () => {
+		it('drops variable candidates that would need a new @use inserted', async () => {
+			const storage = new StorageService();
+			const importGraph = new ImportGraphService(storage);
+
+			storage.set(URI.file(fsPath('accent.scss')).toString(), makeDoc({
+				filepath: fsPath('accent.scss'),
+				variables: [{ name: '$brand', value: '#abcdef', offset: 0, position: { line: 0, character: 0 } }]
+			}));
+
+			const actions = await codeActionAt(['.a { color: #abcd|ef; }'], storage, importGraph, undefined, /* embedded */ true);
+
+			assert.deepStrictEqual(actions, []);
+		});
+
+		it('still offers a same-file $variable replacement', async () => {
+			const storage = new StorageService();
+			const importGraph = new ImportGraphService(storage);
+
+			const actions = await codeActionAt([
+				'$brand: #ff0000;',
+				'.a { color: #ff00|00; }'
+			], storage, importGraph, undefined, /* embedded */ true);
+
+			assert.deepStrictEqual(titles(actions), ['Replace with $brand (current)']);
+		});
+
+		it('still offers a var(--x) custom-property replacement', async () => {
+			const storage = new StorageService();
+			const importGraph = new ImportGraphService(storage);
+
+			storage.set(URI.file(fsPath('tokens.scss')).toString(), makeDoc({
+				filepath: fsPath('tokens.scss'),
+				customProperties: [{ name: '--brand', value: '#ff9900', offset: 0, position: { line: 0, character: 0 }, isRootScope: true }]
+			}));
+
+			const actions = await codeActionAt(['.a { color: #ff99|00; }'], storage, importGraph, undefined, /* embedded */ true);
+
+			assert.deepStrictEqual(titles(actions), ['Replace with var(--brand) (tokens.scss)']);
 		});
 	});
 });

@@ -6,10 +6,22 @@ import fs from 'fs';
 import * as sinon from 'sinon';
 import { Stats } from '@nodelib/fs.macchiato';
 
+import { INode } from '../../types/nodes.js';
 import { parseDocument } from '../../services/parser.js';
-import { getCustomPropertyCandidates } from '../../utils/customProperties.js';
+import { getCustomPropertyCandidates, detectVarFallbackContext } from '../../utils/customProperties.js';
 import StorageService from '../../services/storage.js';
 import * as helpers from '../helpers.js';
+
+/**
+ * Parses `line` and returns the AST node sitting just after `marker` — the
+ * stand-in for "the caret is here".
+ */
+async function nodeAfter(line: string, marker: string): Promise<INode | null> {
+	const offset = line.indexOf(marker) + marker.length;
+	const { node } = await parseDocument(helpers.makeDocument([line]), offset);
+
+	return node;
+}
 
 describe('Utils/CustomProperties', () => {
 	let statStub: sinon.SinonStub;
@@ -109,6 +121,36 @@ describe('Utils/CustomProperties', () => {
 			const candidates = getCustomPropertyCandidates(storage, settings).map(c => c.property.name);
 
 			assert.deepStrictEqual(candidates, ['--primary']);
+		});
+	});
+
+	describe('detectVarFallbackContext', () => {
+		it('detects the context with the caret on the property-name argument', async () => {
+			const node = await nodeAfter('.a { color: var(--brand, #ff0000); }', '--bra');
+			const context = detectVarFallbackContext(node!);
+
+			assert.strictEqual(context?.propertyName, '--brand');
+			assert.strictEqual(context?.fallbackNode.getText(), '#ff0000');
+		});
+
+		it('detects the context with the caret on the fallback color literal', async () => {
+			const node = await nodeAfter('.a { color: var(--brand, #ff0000); }', '#ff0');
+			const context = detectVarFallbackContext(node!);
+
+			assert.strictEqual(context?.propertyName, '--brand');
+			assert.strictEqual(context?.fallbackNode.getText(), '#ff0000');
+		});
+
+		it('returns null for var() with no fallback argument', async () => {
+			const node = await nodeAfter('.a { color: var(--brand); }', '--bra');
+
+			assert.strictEqual(detectVarFallbackContext(node!), null);
+		});
+
+		it('returns null outside of a var() call', async () => {
+			const node = await nodeAfter('.a { color: rgba(0, 0, 0, 0.5); }', '0.');
+
+			assert.strictEqual(detectVarFallbackContext(node!), null);
 		});
 	});
 });

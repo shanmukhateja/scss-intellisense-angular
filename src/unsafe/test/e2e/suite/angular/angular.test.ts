@@ -23,7 +23,9 @@ describe('SCSS Angular includePaths Test', () => {
 
 	it('finds the definition of a namespaced mixin resolved via includePaths', async () => {
 		const expectedDocumentUri = getDocUri('angular-app/styles/_tokens.scss');
-		const expectedLocation = sameLineLocation(expectedDocumentUri, 3, 8, 19);
+		// The definition range starts at the `@mixin` keyword and spans
+		// `name.length` (matches `definition/definitions.test.ts`).
+		const expectedLocation = sameLineLocation(expectedDocumentUri, 3, 1, 12);
 
 		await testDefinition(docUri, position(8, 21), expectedLocation);
 	});

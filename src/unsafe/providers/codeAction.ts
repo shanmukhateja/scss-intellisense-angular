@@ -130,7 +130,8 @@ function buildColorReplacementActions(
 	storage: StorageService,
 	importGraph: ImportGraphService,
 	settings: ISettings,
-	excludeOffset: number | undefined
+	excludeOffset: number | undefined,
+	embedded: boolean
 ): CodeAction[] {
 	const actions: CodeAction[] = [];
 
@@ -150,6 +151,14 @@ function buildColorReplacementActions(
 
 	for (const candidate of takeCandidates(iterateColorVariableCandidates(storage, colorKey, documentPath, excludeOffset))) {
 		const accessibility = resolveVariableAccessibility(document, documentPath, candidate.fsPath, candidate.variable.name, importGraph);
+
+		// Inside an Angular component's inline `styles`, a new `@use` line can't
+		// be inserted (it would land in the .ts file outside the template
+		// literal), so only offer variables already reachable without one.
+		if (embedded && accessibility.insertUseEdit !== undefined) {
+			continue;
+		}
+
 		const relativePath = getDocumentPath(documentPath, candidate.fsPath);
 		const suffix = accessibility.insertUseEdit !== undefined ? ' (adds @use)' : '';
 
@@ -185,7 +194,8 @@ export async function doCodeAction(
 	range: Range,
 	storage: StorageService,
 	importGraph: ImportGraphService,
-	settings: ISettings
+	settings: ISettings,
+	embedded = false
 ): Promise<CodeAction[]> {
 	const documentPath = URI.parse(document.uri).fsPath;
 	const offset = document.offsetAt(range.start);
@@ -195,52 +205,54 @@ export async function doCodeAction(
 		storage.set(document.uri, resource.symbols);
 	}
 
-	// Trigger 1: cursor on a plain color literal (#hex, rgb()/hsl(), named word).
+	// Trigger 1: cursor anywhere inside `var(--x, #fallback)` — on the `--x`
+	// argument or on the fallback literal. Replaces the *whole* call, so a
+	// caret on the fallback color never produces a nested `var(--x, var(--y))`.
+	// Checked before the plain-literal path below precisely because
+	// `findColorLiteralAt` would otherwise match the fallback hex first.
+	if (resource.node !== null) {
+		const fallbackContext = detectVarFallbackContext(resource.node);
+
+		if (fallbackContext !== null) {
+			const alreadyDeclared = getCustomPropertyCandidates(storage, settings).some(
+				candidate => candidate.property.name === fallbackContext.propertyName
+			);
+			if (alreadyDeclared) {
+				return [];
+			}
+
+			const fallbackColorKey = normalizeColor(fallbackContext.fallbackNode.getText());
+			if (fallbackColorKey === null) {
+				return [];
+			}
+
+			const callRange = Range.create(
+				document.positionAt(fallbackContext.callNode.offset),
+				document.positionAt(fallbackContext.callNode.end)
+			);
+
+			return buildColorReplacementActions(document, documentPath, callRange, fallbackColorKey, storage, importGraph, settings, undefined, embedded);
+		}
+	}
+
+	// Trigger 2: cursor on a plain color literal (#hex, rgb()/hsl(), named word).
 	const lineText = getLineText(document, range.start.line);
 	const literal = findColorLiteralAt(lineText, range.start.character);
-
-	if (literal !== null) {
-		const colorKey = normalizeColor(literal.text);
-		if (colorKey === null) {
-			return [];
-		}
-
-		const replaceRange = Range.create(
-			Position.create(range.start.line, literal.start),
-			Position.create(range.start.line, literal.end)
-		);
-
-		const excludeOffset = getEnclosingVariableDeclarationOffset(resource.node);
-
-		return buildColorReplacementActions(document, documentPath, replaceRange, colorKey, storage, importGraph, settings, excludeOffset);
-	}
-
-	// Trigger 2: cursor on the property-name argument of `var(--undeclared, #fallback)`.
-	if (resource.node === null) {
+	if (literal === null) {
 		return [];
 	}
 
-	const fallbackContext = detectVarFallbackContext(resource.node);
-	if (fallbackContext === null) {
-		return [];
-	}
-
-	const alreadyDeclared = getCustomPropertyCandidates(storage, settings).some(
-		candidate => candidate.property.name === fallbackContext.propertyName
-	);
-	if (alreadyDeclared) {
-		return [];
-	}
-
-	const colorKey = normalizeColor(fallbackContext.fallbackNode.getText());
+	const colorKey = normalizeColor(literal.text);
 	if (colorKey === null) {
 		return [];
 	}
 
-	const callRange = Range.create(
-		document.positionAt(fallbackContext.callNode.offset),
-		document.positionAt(fallbackContext.callNode.end)
+	const replaceRange = Range.create(
+		Position.create(range.start.line, literal.start),
+		Position.create(range.start.line, literal.end)
 	);
 
-	return buildColorReplacementActions(document, documentPath, callRange, colorKey, storage, importGraph, settings, undefined);
+	const excludeOffset = getEnclosingVariableDeclarationOffset(resource.node);
+
+	return buildColorReplacementActions(document, documentPath, replaceRange, colorKey, storage, importGraph, settings, excludeOffset, embedded);
 }

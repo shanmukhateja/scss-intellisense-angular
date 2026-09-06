@@ -28,6 +28,7 @@ import { doSignatureHelp } from './providers/signatureHelp.js';
 import { goDefinition } from './providers/goDefinition.js';
 import { searchWorkspaceSymbol } from './providers/workspaceSymbol.js';
 import { doCodeAction } from './providers/codeAction.js';
+import { resolveStyleDocument, forgetStyleDocument } from './services/embeddedStyleDocument.js';
 import { findFiles } from './utils/fs.js';
 
 interface InitializationOption {
@@ -56,6 +57,29 @@ const documents = new TextDocuments(TextDocument);
 // Make the text document manager listen on the connection
 // _for open, change and close text document events
 documents.listen(connection);
+
+// Angular components can carry SCSS in an inline `styles` template literal. Such
+// `.ts` files aren't part of the workspace scss glob, so parse them lazily —
+// only while they're open in the editor — into the same storage the providers
+// read from. `scannerService.scan` special-cases the `.ts` extension.
+documents.onDidChangeContent(change => {
+	if (change.document.languageId !== 'typescript' || settings?.angular.componentStyles !== true) {
+		return;
+	}
+
+	const fsPath = URI.parse(change.document.uri).fsPath;
+
+	scannerService.scan([fsPath]).catch(() => undefined);
+});
+
+documents.onDidClose(event => {
+	if (event.document.languageId !== 'typescript') {
+		return;
+	}
+
+	forgetStyleDocument(event.document.uri);
+	storageService.delete(event.document.uri);
+});
 
 /**
  * Warns once per server session if `angular.json` isn't found (rather than
@@ -172,7 +196,12 @@ connection.onHover(textDocumentPosition => {
 
 	const offset = uri.offsetAt(textDocumentPosition.position);
 
-	return doHover(uri, offset, storageService, importGraphService, settings);
+	const resolved = resolveStyleDocument(uri, { start: offset });
+	if (resolved === undefined) {
+		return;
+	}
+
+	return doHover(resolved.document, offset, storageService, importGraphService, settings);
 });
 
 connection.onSignatureHelp(textDocumentPosition => {
@@ -194,7 +223,12 @@ connection.onDefinition(textDocumentPosition => {
 
 	const offset = uri.offsetAt(textDocumentPosition.position);
 
-	return goDefinition(uri, offset, storageService, importGraphService, settings);
+	const resolved = resolveStyleDocument(uri, { start: offset });
+	if (resolved === undefined) {
+		return;
+	}
+
+	return goDefinition(resolved.document, offset, storageService, importGraphService, settings);
 });
 
 connection.onWorkspaceSymbol(workspaceSymbolParams => {
@@ -207,7 +241,15 @@ connection.onCodeAction(params => {
 		return [];
 	}
 
-	return doCodeAction(uri, params.range, storageService, importGraphService, settings);
+	const resolved = resolveStyleDocument(uri, {
+		start: uri.offsetAt(params.range.start),
+		end: uri.offsetAt(params.range.end)
+	});
+	if (resolved === undefined) {
+		return [];
+	}
+
+	return doCodeAction(resolved.document, params.range, storageService, importGraphService, settings, resolved.embedded);
 });
 
 connection.onShutdown(() => {

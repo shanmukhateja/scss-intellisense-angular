@@ -113,6 +113,11 @@ function buildClientOptions(workspace: URI): LanguageClientOptions {
 	return {
 		documentSelector: [
 			{ scheme: 'file', language: 'scss', pattern },
+			// Angular components can carry SCSS in an inline `styles` template
+			// literal; the server routes hover / goto-def / code-action requests
+			// that land inside one. Document sync feeds the lazy parser, so no
+			// extra file watcher is needed here.
+			{ scheme: 'file', language: 'typescript', pattern },
 		],
 		synchronize: {
 			configurationSection: ['scss'],

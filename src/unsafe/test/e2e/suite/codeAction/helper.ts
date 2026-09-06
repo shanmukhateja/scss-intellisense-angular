@@ -24,3 +24,24 @@ export async function testCodeActionTitles(
 		assert.ok(titles.includes(title), `Expected a code action titled "${title}", got: ${JSON.stringify(titles)}`);
 	});
 }
+
+export async function testNoCodeActionTitleEndingWith(
+	docUri: vscode.Uri,
+	position: vscode.Position,
+	forbiddenSuffix: string
+) {
+	await showFile(docUri);
+
+	const result = (await vscode.commands.executeCommand(
+		'vscode.executeCodeActionProvider',
+		docUri,
+		new vscode.Range(position, position)
+	)) as (vscode.CodeAction | vscode.Command)[];
+
+	const offending = result
+		.filter((item): item is vscode.CodeAction => 'title' in item)
+		.map(item => item.title)
+		.filter(title => title.endsWith(forbiddenSuffix));
+
+	assert.deepStrictEqual(offending, [], `Did not expect any code action ending with "${forbiddenSuffix}"`);
+}

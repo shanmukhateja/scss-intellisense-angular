@@ -14,7 +14,9 @@ async function main() {
 
 		// The path to the extension test script
 		// Passed to --extensionTestsPath
-		const extensionTestsPath = path.resolve(__dirname, './suite/index');
+		// `.js` is required: VS Code imports this path as an ESM module and the
+		// package is `"type": "module"`, so extensionless resolution fails.
+		const extensionTestsPath = path.resolve(__dirname, './suite/index.js');
 
 		const workspaceDir = path.resolve(__dirname, '../../../../fixtures/e2e');
 
