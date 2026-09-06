@@ -1,6 +1,8 @@
 'use strict';
 
-import ts from 'typescript';
+import { parse, type ParserOptions } from '@babel/parser';
+
+import type { Node } from '@babel/types';
 
 export interface ISpan {
 	start: number;
@@ -22,24 +24,106 @@ export interface IStyleRegions {
 
 const EMPTY: IStyleRegions = { styleSpans: [], interpolationSpans: [] };
 
-function propertyName(name: ts.PropertyName): string | undefined {
-	if (ts.isIdentifier(name) || ts.isStringLiteralLike(name)) {
-		return name.text;
+const PARSE_OPTIONS: ParserOptions = {
+	// Angular component files carry top-level `import`s; `unambiguous` lets Babel
+	// pick module vs script itself so a plain script never trips the parser.
+	sourceType: 'unambiguous',
+	// Behave like `ts.createSourceFile`: collect syntax errors instead of
+	// throwing, so a half-typed file still yields whatever parsed.
+	errorRecovery: true,
+	plugins: ['typescript', 'decorators-legacy']
+};
+
+function isNode(value: unknown): value is Node {
+	return typeof value === 'object' && value !== null && typeof (value as { type?: unknown }).type === 'string';
+}
+
+/**
+ * Visits `root` and every AST node reachable from it. Position and comment
+ * metadata hang off nodes under fixed keys and never hold child nodes, so they
+ * are skipped rather than walked.
+ */
+function walk(root: Node, visit: (node: Node) => void): void {
+	visit(root);
+
+	for (const key in root) {
+		if (key === 'loc' || key === 'leadingComments' || key === 'trailingComments' || key === 'innerComments') {
+			continue;
+		}
+
+		const value = (root as unknown as Record<string, unknown>)[key];
+
+		if (Array.isArray(value)) {
+			for (const item of value) {
+				if (isNode(item)) {
+					walk(item, visit);
+				}
+			}
+		} else if (isNode(value)) {
+			walk(value, visit);
+		}
+	}
+}
+
+function propertyKeyName(node: Node): string | undefined {
+	if (node.type === 'Identifier') {
+		return node.name;
+	}
+
+	if (node.type === 'StringLiteral') {
+		return node.value;
 	}
 
 	return undefined;
 }
 
-function decoratorName(expression: ts.LeftHandSideExpression): string | undefined {
-	if (ts.isIdentifier(expression)) {
-		return expression.text;
+function calleeName(node: Node): string | undefined {
+	if (node.type === 'Identifier') {
+		return node.name;
 	}
 
-	if (ts.isPropertyAccessExpression(expression)) {
-		return expression.name.text;
+	if (node.type === 'MemberExpression' && node.property.type === 'Identifier') {
+		return node.property.name;
 	}
 
 	return undefined;
+}
+
+function collectStyleValue(node: Node, styleSpans: ISpan[], interpolationSpans: ISpan[]): void {
+	if (node.start === null || node.end === null || node.start === undefined || node.end === undefined) {
+		return;
+	}
+
+	if (node.type === 'StringLiteral') {
+		// +1 / -1 strips the surrounding quote.
+		styleSpans.push({ start: node.start + 1, end: node.end - 1 });
+
+		return;
+	}
+
+	if (node.type === 'TemplateLiteral') {
+		// Covers both a plain `` `x` `` and one with `${ ... }` substitutions.
+		styleSpans.push({ start: node.start + 1, end: node.end - 1 });
+
+		for (const expression of node.expressions) {
+			if (expression.start === null || expression.end === null || expression.start === undefined || expression.end === undefined) {
+				continue;
+			}
+
+			// `${` is 2 chars before the expression, `}` is 1 char after it.
+			interpolationSpans.push({ start: expression.start - 2, end: expression.end + 1 });
+		}
+
+		return;
+	}
+
+	if (node.type === 'ArrayExpression') {
+		for (const element of node.elements) {
+			if (element !== null && element.type !== 'SpreadElement') {
+				collectStyleValue(element, styleSpans, interpolationSpans);
+			}
+		}
+	}
 }
 
 /**
@@ -47,60 +131,44 @@ function decoratorName(expression: ts.LeftHandSideExpression): string | undefine
  * decorator, plus the `${ ... }` interpolation spans inside any template
  * literals.
  *
- * Uses the TypeScript compiler's own parser (`ts.createSourceFile`) rather than
- * a hand-rolled scanner: template literals, nested braces, comments and escaped
- * quotes are all handled correctly for free. `styleUrls`/`styleUrl` are ignored
- * — those point at real `.scss` files the `**\/*.scss` glob already covers.
+ * Uses a real JS/TS parser (`@babel/parser`) rather than a hand-rolled scanner:
+ * template literals, nested braces, comments and escaped quotes are all handled
+ * correctly for free. `styleUrls`/`styleUrl` are ignored — those point at real
+ * `.scss` files the `**\/*.scss` glob already covers.
  */
 export function extractStyleRegions(text: string): IStyleRegions {
-	const source = ts.createSourceFile('inline.ts', text, ts.ScriptTarget.Latest, /* setParentNodes */ true, ts.ScriptKind.TS);
+	let program: Node;
+
+	try {
+		program = parse(text, PARSE_OPTIONS).program;
+	} catch {
+		return EMPTY;
+	}
 
 	const styleSpans: ISpan[] = [];
 	const interpolationSpans: ISpan[] = [];
 
-	const collect = (node: ts.Node): void => {
-		if (ts.isStringLiteralLike(node)) {
-			// getStart() skips leading trivia; +1/-1 strips the surrounding quote/backtick.
-			styleSpans.push({ start: node.getStart(source) + 1, end: node.getEnd() - 1 });
-
+	walk(program, node => {
+		if (node.type !== 'Decorator' || node.expression.type !== 'CallExpression') {
 			return;
 		}
 
-		if (ts.isTemplateExpression(node)) {
-			styleSpans.push({ start: node.getStart(source) + 1, end: node.getEnd() - 1 });
-
-			for (const span of node.templateSpans) {
-				// `${` is 2 chars before the expression, `}` is 1 char after it.
-				interpolationSpans.push({ start: span.expression.getStart(source) - 2, end: span.expression.getEnd() + 1 });
-			}
-
+		if (calleeName(node.expression.callee as Node) !== 'Component') {
 			return;
 		}
 
-		if (ts.isArrayLiteralExpression(node)) {
-			for (const element of node.elements) {
-				collect(element);
-			}
-		}
-	};
+		const [metadata] = node.expression.arguments;
 
-	const visit = (node: ts.Node): void => {
-		if (ts.isDecorator(node) && ts.isCallExpression(node.expression) && decoratorName(node.expression.expression) === 'Component') {
-			const [metadata] = node.expression.arguments;
-
-			if (metadata !== undefined && ts.isObjectLiteralExpression(metadata)) {
-				for (const property of metadata.properties) {
-					if (ts.isPropertyAssignment(property) && propertyName(property.name) === 'styles') {
-						collect(property.initializer);
-					}
-				}
-			}
+		if (metadata === undefined || metadata.type !== 'ObjectExpression') {
+			return;
 		}
 
-		ts.forEachChild(node, visit);
-	};
-
-	visit(source);
+		for (const property of metadata.properties) {
+			if (property.type === 'ObjectProperty' && propertyKeyName(property.key as Node) === 'styles') {
+				collectStyleValue(property.value as Node, styleSpans, interpolationSpans);
+			}
+		}
+	});
 
 	if (styleSpans.length === 0) {
 		return EMPTY;

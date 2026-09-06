@@ -9,6 +9,7 @@ node_modules/
 
 # Compiled and temporary files
 out/
+dist/
 *.vsix
 .vscode-test
 .eslintcache
